@@ -1,0 +1,27 @@
+{
+  "name": "finance-design",
+  "description": "Finance Design",
+  "author": "Alexander Soltanov<so1tan0v@yandex.ru>",
+  "license": "MIT",
+  "homepage": "https://fin.soltanov.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/finance-design/finance-design.git"
+  },
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "check": "node scripts/check.mjs"
+  },
+  "dependencies": {
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "vite": "8.3.4"
+  }
+}

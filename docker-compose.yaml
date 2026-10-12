@@ -1,0 +1,6 @@
+services:
+  app-frontend:
+    build:
+      dockerfile: Dockerfile
+    ports:
+      - ${APP_PORT:-8080}:80

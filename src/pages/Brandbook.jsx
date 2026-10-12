@@ -1,0 +1,27 @@
+import React from 'react';
+import { Badge, Button, Card, Money, Notice, PageIntro, Progress, Section } from '../components/ui.jsx';
+
+const colors = [
+  ['Основной акцент', '#225C46', 'Главное действие и выбранное состояние'],
+  ['Холст', '#E8EBE6', 'Пространство вне экранов'],
+  ['Поверхность', '#F7F8F4', 'Фон приложения'],
+  ['Карточка', '#FFFFFF', 'Сгруппированное содержимое'],
+  ['Основной текст', '#1C2923', 'Заголовки, суммы и факты'],
+  ['Вторичный текст', '#637269', 'Подписи и пояснения'],
+  ['Граница', '#E1E7DF', 'Разделители и поля'],
+  ['Расход / ошибка', '#AD3D38', 'Отрицательные суммы и ошибки'],
+  ['Предупреждение', '#926A36', 'Порог и внимание']
+];
+
+export default function Brandbook() {
+  return <>
+    <PageIntro eyebrow="FINANCE / DESIGN STUDY 01" title="Деньги — в понятном порядке." description="Рабочий брендбук Finance на основе первого HTML-прототипа и Figma: визуальные роли, язык и правила для всех экранов." action={<Button href="#kit" icon="↗">Открыть UI Kit</Button>} />
+    <div className="intro-grid"><div className="brand-hero"><span className="eyebrow">Finance / рабочий бренд</span><h2>Ясность<br />в каждой<br />сумме.</h2><p>Личные финансы без визуального шума. Экран помогает понять, что произошло с деньгами и какое действие будет дальше.</p></div><Card className="manifesto"><span className="eyebrow">Принцип 01</span><strong>01</strong><p>Сначала факт движения денег. Затем его значение для итога, бюджета и прогноза.</p><small>Основано на требованиях финансового ядра.</small></Card></div>
+    <Section title="Характер и язык" description="Спокойный, точный и честный интерфейс. Каждая формулировка имеет предметный смысл."><div className="grid-3"><Card><h3>Спокойно</h3><p>Нейтральный фон, короткие тексты и один главный акцент на экран.</p></Card><Card><h3>Точно</h3><p>«Остаток по учёту», «общий итог» и «бюджет» называют разные величины. Сумма всегда рядом с валютой.</p></Card><Card><h3>Честно</h3><p>Офлайн, ожидание передачи, конфликт и ошибка имеют собственные текстовые метки.</p></Card></div></Section>
+    <Section title="Цветовая система" description="Роли перенесены из существующего HTML-прототипа и светлого макета Figma."><div className="grid-3">{colors.map(([name, hex, use]) => <div className="token-card" key={name}><span className="swatch" style={{ background: hex }} /><span><strong>{name}</strong><small>{hex}<br />{use}</small></span></div>)}</div></Section>
+    <Section title="Типографика" description="Системный шрифт и размеры первого HTML-прототипа; на Android используется системный sans-serif."><div className="grid-2"><Card className="type-card"><div><strong className="type-display">11 500 ₽</strong><small>43 / 600 · смысловая сумма</small></div><div><strong className="type-title">Мои счета</strong><small>28 / 650 · заголовок</small></div><div><span>Операция сохранена на устройстве</span><small>14 / 400 · основной текст</small></div><div><span className="meta">Источник курса · 09.10.2026</span><small>11 / 400 · метаданные</small></div></Card><Card><h3>Правила набора</h3><ul className="rule-list"><li>Суммы используют табличные цифры; знак и валюта видны вместе.</li><li>Иерархия: заголовок → сумма → контекст → действие.</li><li>Длинные подписи переносятся, а не обрезаются ради симметрии.</li><li>Доход, расход и перевод различаются словом и знаком, а не только цветом.</li></ul></Card></div></Section>
+    <Section title="Размеры и ритм" description="Шаг 4 px; базовый мобильный кадр 390 × 844."><div className="grid-2"><Card><h3>Отступы</h3><div className="measure-list">{[4,8,12,16,20,24,32].map(n => <span key={n}>{n}</span>)}</div><p>Связанные поля — 8–12 px; блоки — 20–24 px; разделы — 32 px.</p></Card><Card><h3>Форма и нажатие</h3><div className="measure-list"><span>14</span><span>20</span><span>24</span></div><p>Радиус поля — 14, карточки — 20, главного блока — 24. Нажимаемая область от 48 × 48 px.</p></Card></div></Section>
+    <Section title="Представление финансов" description="Смысл сумм одинаков на счетах, в журнале и отчётах."><div className="grid-3"><Card><h3>Фактический остаток</h3><Money value="8 500" /><p>На конкретном счёте после денежных фактов.</p></Card><Card><h3>Общий итог</h3><Money value="11 500" /><p>Только включённые счета в базовой валюте.</p></Card><Card><h3>Бюджет</h3><Progress value={90} label="Использовано 90% бюджета" /><p>45 000 из 50 000 ₽. Внебюджетный расход отдельно.</p></Card></div></Section>
+    <Section title="Состояния и доступность" description="Цвет всегда сопровождается словом, знаком или контекстом."><div className="grid-2"><Card className="stack"><Notice tone="success">Сохранено на устройстве. Передача не подтверждена.</Notice><Notice tone="warning">Курс введён вручную и может устареть.</Notice><Notice tone="danger">Две версии операции требуют согласования.</Notice></Card><Card><h3>Проверка интерфейса</h3><ul className="rule-list"><li>Фокус клавиатуры виден.</li><li>Контраст текста и значимых элементов проверяется на реальных экранах.</li><li>Статус проговаривается текстом; цвет — дополнительный сигнал.</li><li>Основные действия доступны пальцем и клавиатурой.</li></ul><div className="badge-line"><Badge tone="success">Сохранено</Badge><Badge tone="warning">Ожидает</Badge><Badge tone="danger">Конфликт</Badge></div></Card></div></Section>
+  </>;
+}
