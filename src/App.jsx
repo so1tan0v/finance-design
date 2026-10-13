@@ -6,6 +6,7 @@ import Desktop from './pages/Desktop.jsx';
 import Scenarios from './pages/Scenarios.jsx';
 import Docs from './pages/Docs.jsx';
 import { screens, scenarios } from './data/screens.js';
+import { BrandMark } from './components/ui.jsx';
 
 const tabs = [['brandbook', 'Brandbook'], ['kit', 'UI Kit'], ['screens', 'Экраны'], ['desktop', 'Desktop'], ['scenarios', 'Сценарии'], ['docs', 'Документация']];
 const docAnchors = new Set(['source', 'architecture', 'rules', 'clickability', 'limits', 'docker']);
@@ -40,6 +41,6 @@ export default function App() {
   const [section, ...routeParts] = route.split('/');
   const id = routeParts.join('/').split('?')[0];
   const active = tabs.some(([key]) => key === section) ? section : 'brandbook';
-  useEffect(() => { document.title = `Finance — ${tabs.find(([key]) => key === active)?.[1] || 'Дизайн-система'}`; }, [active]);
-  return <div className="app-shell"><div className="site-header-bar" ref={headerRef}><header className="site-header"><a className="brand" href="#brandbook"><span className="brand-mark">F</span><span>Finance<small>Design system</small></span></a><nav className="site-nav" aria-label="Разделы дизайна">{tabs.map(([key, label]) => <a href={`#${key}`} key={key} className={active === key ? 'active' : ''} aria-current={active === key ? 'page' : undefined}>{label}</a>)}</nav><div className="header-meta">Мобильный и настольный концепт<br />{screens.length} экрана · {scenarios.length} сценариев</div></header></div><main className="page" id="main">{active === 'brandbook' && <Brandbook />}{active === 'kit' && <Kit />}{active === 'screens' && <Screens selectedId={id} />}{active === 'desktop' && <Desktop selectedId={id} />}{active === 'scenarios' && <Scenarios />}{active === 'docs' && <Docs anchor={id} />}</main></div>;
+  useEffect(() => { document.title = `So1 Money — ${tabs.find(([key]) => key === active)?.[1] || 'Дизайн-система'}`; }, [active]);
+  return <div className="app-shell"><div className="site-header-bar" ref={headerRef}><header className="site-header"><a className="brand" href="#brandbook"><BrandMark /><span>So1 Money<small>Design system</small></span></a><nav className="site-nav" aria-label="Разделы дизайна">{tabs.map(([key, label]) => <a href={`#${key}`} key={key} className={active === key ? 'active' : ''} aria-current={active === key ? 'page' : undefined}>{label}</a>)}</nav><div className="header-meta">Мобильное и настольное приложение<br />{screens.length} экрана · {scenarios.length} сценариев</div></header></div><main className="page" id="main">{active === 'brandbook' && <Brandbook />}{active === 'kit' && <Kit />}{active === 'screens' && <Screens selectedId={id} />}{active === 'desktop' && <Desktop selectedId={id} />}{active === 'scenarios' && <Scenarios />}{active === 'docs' && <Docs anchor={id} />}</main></div>;
 }

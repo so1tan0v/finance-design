@@ -10,6 +10,8 @@ const iconPaths = {
   food:'M5 3v7M8 3v7M3 7h7M6.5 10v11M16 3v18M16 3c5 3 5 8 0 8',
   plus:'M12 5v14M5 12h14', list:'M9 6h12M9 12h12M9 18h12M3 6h1M3 12h1M3 18h1',
   settings:'M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7M10 2h4l.5 2.1 1.5.6 1.9-1.2 2.8 2.8-1.2 1.9.6 1.5L22 10v4l-2.1.5-.6 1.5 1.2 1.9-2.8 2.8-1.9-1.2-1.5.6L14 22h-4l-.5-2.1-1.5-.6-1.9 1.2-2.8-2.8 1.2-1.9-.6-1.5L2 14v-4l2.1-.5.6-1.5-1.2-1.9 2.8-2.8 1.9 1.2 1.5-.6Z',
+  more:'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z',
+  budget:'M4 3h16v18H4zM4 8h16M8 12h8M8 16h5',
   chart:'M3 3v18h18M7 16l4-5 3 2 5-7M7 17v-4M12 17v-7M17 17V8', target:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10M12 10v4',
   cart:'M3 4h2l2.2 10h11.6l2-7H6M9 19h.1M18 19h.1',
   house:'M3 11 12 3l9 8v10H3zM9 21v-7h6v7',
@@ -23,6 +25,8 @@ const iconPaths = {
   person:'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21v-2a8 8 0 0 1 16 0v2',
   search:'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM16 16l5 5',
   paste:'M8 5h12v16H8zM10 3h5M4 8v11M4 19h2',
+  phone:'M8 2h8a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zM11 18h2',
+  book:'M4 4h8a4 4 0 0 1 4 4v13H8a4 4 0 0 1-4-4zM12 4h8v13h-8a4 4 0 0 0-4 4',
   gift:'M4 10h16v11H4zM3 7h18v3H3zM12 7v14M12 7C8 7 6 5 7 3c1.5-2 5 1 5 4zM12 7c4 0 6-2 5-4-1.5-2-5 1-5 4z',
   star:'m12 2 2.7 6.5L22 9l-5.5 4.8 1.7 7.2L12 17l-6.2 4 1.7-7.2L2 9l7.3-.5z',
   bag:'M4 8h16l-1 13H5zM9 8V6a3 3 0 0 1 6 0v2',
@@ -34,6 +38,14 @@ const iconPaths = {
   check:'M5 12l4 4L19 6', dots:'M5 12h.1M12 12h.1M19 12h.1', clock:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M12 7v5l3 2'
 };
 export function Icon({ name, size = 22, className = '' }) { return <svg className={`icon ${className}`} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={iconPaths[name] || iconPaths.wallet} /></svg>; }
+
+export function BrandMark({ size = 38 }) {
+  return <span className="brand-mark" style={{ width: size, height: size }} aria-hidden="true"><img src="/logo-mark.png" alt="" width={size} height={size} /></span>;
+}
+
+export function EmptyState({ title, text }) {
+  return <div className="empty-state"><BrandMark size={48} /><strong>{title}</strong><p>{text}</p></div>;
+}
 
 export function Button({ children, href, variant = 'primary', size = 'normal', icon, disabled = false, onClick, className = '' }) {
   const classes = `button button--${variant} button--${size} ${className}`.trim();

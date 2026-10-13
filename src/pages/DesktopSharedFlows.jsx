@@ -10,5 +10,5 @@ export function DesktopEntry({ initialKind = 'Расход' }) {
 }
 
 export function DesktopReports() {
-  return <div className="desktop-report-layout desktop-flow"><section className="desktop-reports-card"><ReportsFlow href={desktopHref} /></section><aside className="desktop-flow-aside"><small>ОТЧЁТЫ</small><h3>Из диаграммы в журнал</h3><p>Выберите категорию на круговой диаграмме или в списке, чтобы открыть её операции.</p><div className="desktop-flow-aside-links"><a href="#desktop/journal"><Icon name="list" size={17} />Журнал</a><a href="#desktop/budget"><Icon name="target" size={17} />Бюджет</a><a href="#desktop/screen/export-data"><Icon name="down" size={17} />Экспорт</a></div></aside></div>;
+  return <div className="desktop-report-layout desktop-flow"><section className="desktop-reports-card"><ReportsFlow href={desktopHref} /></section><aside className="desktop-flow-aside"><small>ОТЧЁТЫ</small><h3>Из диаграммы в журнал</h3><p>Выберите категорию на круговой диаграмме или в списке, чтобы открыть её операции.</p><div className="desktop-flow-aside-links"><a href="#desktop/journal"><Icon name="list" size={17} />Журнал</a><a href="#desktop/budget"><Icon name="budget" size={17} />Бюджет</a><a href="#desktop/screen/export-data"><Icon name="down" size={17} />Экспорт</a></div></aside></div>;
 }

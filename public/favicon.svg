@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="So1 Money">
+  <rect width="64" height="64" rx="16" fill="#E8EBE6"/>
+  <rect x="3" y="3" width="58" height="58" rx="14" fill="#F7F8F4"/>
+  <g transform="translate(32 35) rotate(-8)">
+    <rect x="-20" y="-26" width="38" height="16" rx="4" fill="#D7E4C8" stroke="#F7F8F4" stroke-width="2.4" transform="rotate(8)"/>
+    <rect x="-26" y="-16" width="52" height="34" rx="9" fill="#225C46"/>
+    <rect x="8" y="-3" width="20" height="13" rx="4" fill="#387656" stroke="#73A184" stroke-width="1"/>
+    <circle cx="18" cy="3.5" r="2.1" fill="#E7F0E2"/>
+  </g>
+</svg>

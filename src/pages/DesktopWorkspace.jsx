@@ -20,7 +20,7 @@ function journalFilter(area) {
 }
 function JournalView({ area }) {
   const filter = journalFilter(area);
-  return <>{filter.active && <div className="desktop-journal-filter"><span>Из отчёта: {filter.label}</span><a href="#desktop/journal">Сбросить</a></div>}<div className="desktop-table-scroll"><table><thead><tr>{area.columns.map(label => <th key={label}>{label}</th>)}</tr></thead><tbody>{filter.rows.map((row, index) => <tr key={index}>{row.map((value, cell) => <td key={cell}>{value}</td>)}</tr>)}</tbody></table>{!filter.rows.length && <p className="search-empty">Операций с выбранными фильтрами нет в демо-данных</p>}</div></>;
+  return <>{filter.active && <div className="desktop-journal-filter"><span>Из отчёта: {filter.label}</span><a href="#desktop/journal">Сбросить</a></div>}<div className="desktop-table-scroll"><table><thead><tr>{area.columns.map(label => <th key={label}>{label}</th>)}</tr></thead><tbody>{filter.rows.map((row, index) => <tr key={index}>{row.map((value, cell) => <td key={cell}>{value}</td>)}</tr>)}</tbody></table>{!filter.rows.length && <p className="search-empty">Нет операций по этому фильтру</p>}</div></>;
 }
 
 function AccountsView({ area }) {

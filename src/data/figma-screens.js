@@ -245,7 +245,7 @@ export const figmaScreens = [
   {
     "id": "saved",
     "title": "Операция сохранена",
-    "subtitle": "Демонстрация состояния интерфейса",
+    "subtitle": "Сохранено на устройстве",
     "figmaNode": "13:132",
     "elements": [
       {
@@ -272,7 +272,7 @@ export const figmaScreens = [
   {
     "id": "currencies",
     "title": "Валюты и курсы",
-    "subtitle": "Демонстрационные курсы, не рыночные",
+    "subtitle": "Ручные курсы могут отличаться от рыночных",
     "figmaNode": "13:143",
     "elements": [
       {
