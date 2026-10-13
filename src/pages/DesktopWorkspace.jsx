@@ -1,26 +1,28 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Icon } from '../components/ui.jsx';
+import { DayHeading, operationsWithTags } from '../components/Phone.jsx';
 
 const href = id => id.startsWith('@') ? `#desktop/${id.slice(1)}` : `#desktop/screen/${id}`;
 
-function journalFilter(area) {
+function DesktopJournal() {
   const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
-  const category = params.get('category') || '';
-  const period = params.get('period') || '';
-  const account = params.get('account') || '';
-  const kind = params.get('kind') || '';
-  const active = Boolean(category || period || account || kind);
-  const rows = area.rows.filter(row =>
-    (!category || row[3] === category) &&
-    (!period || period === 'Октябрь 2026') &&
-    (!account || account === 'Все счета' || row[2] === account) &&
-    (!kind || (kind === 'Расход' ? row[4].startsWith('−') : kind === 'Доход' ? row[4].startsWith('+') : true))
+  const reportCategory = params.get('category') || '';
+  const reportPeriod = params.get('period') || '';
+  const reportAccount = params.get('account') || '';
+  const reportKind = params.get('kind') || '';
+  const hasReportFilter = Boolean(reportCategory || reportPeriod || reportAccount || reportKind);
+  const [query, setQuery] = useState('');
+  const [group, setGroup] = useState('Все');
+  const shown = operationsWithTags().filter(item =>
+    (group === 'Все' || item.group === group) &&
+    (!reportCategory || item.category === reportCategory) &&
+    (!reportPeriod || item.period === reportPeriod) &&
+    (!reportAccount || reportAccount === 'Все счета' || item.account === reportAccount) &&
+    (!reportKind || item.group === reportKind) &&
+    `${item.title} ${item.detail} ${item.amount} ${item.day} ${(item.tags || []).join(' ')}`.toLowerCase().includes(query.toLowerCase())
   );
-  return { active, rows, label: [category, period, account !== 'Все счета' ? account : '', kind].filter(Boolean).join(' · ') };
-}
-function JournalView({ area }) {
-  const filter = journalFilter(area);
-  return <>{filter.active && <div className="desktop-journal-filter"><span>Из отчёта: {filter.label}</span><a href="#desktop/journal">Сбросить</a></div>}<div className="desktop-table-scroll"><table><thead><tr>{area.columns.map(label => <th key={label}>{label}</th>)}</tr></thead><tbody>{filter.rows.map((row, index) => <tr key={index}>{row.map((value, cell) => <td key={cell}>{value}</td>)}</tr>)}</tbody></table>{!filter.rows.length && <p className="search-empty">Нет операций по этому фильтру</p>}</div></>;
+  const days = [...new Set(shown.map(item => item.day))];
+  return <div className="desktop-content desktop-content--journal"><section className="desktop-journal">{hasReportFilter && <div className="desktop-journal-filter"><span>Из отчёта: {[reportCategory, reportPeriod, reportAccount !== 'Все счета' ? reportAccount : '', reportKind].filter(Boolean).join(' · ')}</span><a href="#desktop/journal">Сбросить</a></div>}<label className="app-search"><Icon name="search" size={18} /><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Поиск по операциям" aria-label="Поиск по операциям" /></label><div className="search-scopes" role="group" aria-label="Тип операции">{['Все','Расход','Доход','Перевод','Долг'].map(value => <button type="button" key={value} className={group === value ? 'active' : ''} onClick={() => setGroup(value)}>{value}</button>)}</div>{days.length ? days.map(day => { const rows = shown.filter(item => item.day === day); return <div className="journal-day" key={day}><DayHeading day={day} rows={rows} /><div className="ledger-card journal-ledger">{rows.map(item => <a className="operation-row" href={`#screens/base-detail?op=${item.id}`} key={item.id}><span className={`operation-icon ${item.kind === 'food' ? 'food' : ''}`}><Icon name={item.kind || 'food'} /></span><span className="operation-copy"><strong>{item.title}</strong><small>{item.detail}</small>{item.tags?.length > 0 && <span className="operation-tags">{item.tags.map(tag => <em key={tag}>{tag}</em>)}</span>}</span><strong className={`operation-amount ${item.tone || ''}`}>{item.amount}</strong></a>)}</div></div>; }) : <p className="search-empty">Нет операций по этому фильтру</p>}<p className="mobile-hint">В журнале все факты: расход, доход, перевод и долг.</p></section></div>;
 }
 
 function AccountsView({ area }) {
@@ -59,12 +61,13 @@ function DataView({ area }) {
   return <div className="desktop-review-list">{area.rows.map(([source, count, matches, errors, status], index) => <div className="desktop-review-row" key={source}><span className={`desktop-review-icon desktop-review-icon--${index}`}><Icon name={['paste', 'qr', 'shield'][index]} size={20} /></span><span><strong>{source}</strong><small>{count} записей · {matches === '—' ? 'совпадений нет' : `${matches} совпадения`} · {errors} ошибок</small></span><em>{status}</em></div>)}</div>;
 }
 
-const views = { journal: JournalView, accounts: AccountsView, budget: BudgetView, planning: PlanningView, together: TogetherView, debts: DebtsView, deposits: DepositsView, loans: LoansView, reports: ReportsView, data: DataView };
+const views = { accounts: AccountsView, budget: BudgetView, planning: PlanningView, together: TogetherView, debts: DebtsView, deposits: DepositsView, loans: LoansView, reports: ReportsView, data: DataView };
 const captions = { journal: 'Последние операции', accounts: 'Счета книги', budget: 'Мои бюджеты', planning: 'Ближайшие события', together: 'Участники', debts: 'Открытые долги', deposits: 'Мои вклады', loans: 'Платежи по кредитам', reports: 'Категории расходов', data: 'Источники для проверки' };
 
 export default function DesktopWorkspace({ area }) {
+  if (area.id === 'journal') return <DesktopJournal />;
   const View = views[area.id];
-  const visibleCount = area.id === 'journal' ? journalFilter(area).rows.length : area.rows.length;
+  const visibleCount = area.rows.length;
   const recordWord = visibleCount % 10 === 1 && visibleCount % 100 !== 11 ? 'запись' : [2,3,4].includes(visibleCount % 10) && ![12,13,14].includes(visibleCount % 100) ? 'записи' : 'записей';
-  return <><div className={`desktop-overview desktop-overview--${area.id}`}><div><small>{area.metricLabel}</small><strong>{area.metric}</strong></div><p>{area.lead}</p></div><div className="desktop-content"><section className="desktop-table-card"><div className="desktop-card-head"><div><span className="desktop-card-kicker">ЛИЧНАЯ КНИГА</span><h3>{captions[area.id]}</h3></div><span>{visibleCount} {area.id === 'reports' ? 'категории' : area.id === 'budget' ? 'бюджета' : recordWord}</span></div><View area={area} /></section><aside className="desktop-detail"><small>ПО ЭТОЙ ТЕМЕ</small><h3>Действия</h3><p>{area.detail}</p><div>{area.links.map(([label, id]) => <a key={id} href={href(id)}>{label}<Icon name="chevron" size={15} /></a>)}</div></aside></div></>;
+  return <><div className={`desktop-overview desktop-overview--${area.id}`}><div><small>{area.metricLabel}</small><strong>{area.metric}</strong></div><p>{area.lead}</p></div><div className="desktop-content"><section className="desktop-table-card"><div className="desktop-card-head"><div><span className="desktop-card-kicker">ЛИЧНАЯ КНИГА</span><h3>{captions[area.id]}</h3></div><span>{visibleCount} {area.id === 'reports' ? 'категории' : area.id === 'budget' ? 'бюджета' : recordWord}</span></div><View area={area} /></section></div></>;
 }

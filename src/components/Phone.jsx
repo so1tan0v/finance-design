@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AccountTile, Badge, Button, Icon, MobileFormField, MobileHero, Notice, Progress, screenHref } from './ui.jsx';
-import { WelcomeFlow, EntryFlow, CurrenciesFlow, AccountCreateFlow, PocketsFlow, ReportsFlow, BudgetFlow, DepositFlow, LoanFlow, DebtFlow, DirectoryEditor, PrototypeField, CATEGORY_TREE, currencySymbol, getAccountRows, getFirstAccount, readDirectory, readPayers, readSettings } from './FinanceFlows.jsx';
+import { WelcomeFlow, EntryFlow, CurrenciesFlow, AccountCreateFlow, PocketsFlow, ReportsFlow, BudgetFlow, DepositFlow, LoanFlow, DebtFlow, DirectoryEditor, PrototypeField, TagPicker, CATEGORY_TREE, currencySymbol, getAccountRows, getFirstAccount, readCreatedOperations, readDirectory, readOperationTags, readPayers, readSettings, writeOperationTags } from './FinanceFlows.jsx';
 import { screens } from '../data/screens.js';
 import { coverageViews } from './CoverageFlows.jsx';
 import { captureViews } from './CaptureFlows.jsx';
@@ -10,7 +10,9 @@ function StatusBar() { return <><span className="camera" /><div className="phone
 function MobileNav({ id }) { if (id === 'base-welcome') return null; return <nav className="phone-nav" aria-label="Навигация приложения"><a className={['base-journal','base-detail','journal-filters','saved-search','trip-detail','trip-expense','trip-settle','share-link'].includes(id) ? 'selected' : ''} href={go('base-journal')}><Icon name="list" />Журнал</a><a className={['base-accounts','base-account','accounts','pockets','account-review','reconcile'].includes(id) ? 'selected' : ''} href={go('base-accounts')}><Icon name="wallet" />Счета</a><a className="add" href={go('base-expense')} aria-label="Добавить операцию"><Icon name="plus" size={25} /></a><a className={['reports','pie','enreports'].includes(id) ? 'selected' : ''} href={go('reports')}><Icon name="chart" />Отчёты</a><a className={['base-settings','debts','debt-new','debt-detail','debt-repay','deposits','deposit-new','deposit-detail','loans','loan-detail','loan-calc'].includes(id) ? 'selected' : ''} href={go('base-settings')}><Icon name="more" />Ещё</a></nav>; }
 function Topline({ title, back, subtitle, accessory }) { return <div className={`mobile-topline ${back ? 'small' : ''}`}>{back ? <a className="circle-button" href={go(back)} aria-label="Назад"><Icon name="back" /></a> : <div><small>{subtitle}</small><h2>{title}</h2></div>}{back && <h2>{title}</h2>}{accessory || <span className="topline-spacer" />}</div>; }
 function SectionHeading({ title, action, to }) { return <div className="mobile-section-heading"><h3>{title}</h3>{action && <a href={go(to)}>{action} <Icon name="chevron" size={17} /></a>}</div>; }
-function OperationRow({ title, detail, amount, tone = '', kind = 'food', to = 'base-detail' }) { return <a className="operation-row" href={go(to)}><span className={`operation-icon ${kind === 'food' ? 'food' : ''}`}><Icon name={kind} /></span><span className="operation-copy"><strong>{title}</strong><small>{detail}</small></span><strong className={`operation-amount ${tone}`}>{amount}</strong></a>; }
+function OperationRow({ title, detail, amount, tone = '', kind = 'food', to = 'base-detail', href, tags = [] }) {
+  return <a className="operation-row" href={href || go(to)}><span className={`operation-icon ${kind === 'food' ? 'food' : ''}`}><Icon name={kind} /></span><span className="operation-copy"><strong>{title}</strong><small>{detail}</small>{tags.length > 0 && <span className="operation-tags">{tags.map(tag => <em key={tag}>{tag}</em>)}</span>}</span><strong className={`operation-amount ${tone}`}>{amount}</strong></a>;
+}
 function Action({ children, to, secondary = false, danger = false }) { return <Button href={go(to)} variant={danger ? 'danger' : secondary ? 'secondary' : 'primary'} className="mobile-action" icon={!secondary && !danger ? <Icon name="arrow" size={18} /> : undefined}>{children}</Button>; }
 function MoneyRows({ rows }) { return <div className="mobile-form-card">{rows.map(([label, value]) => <div className="mobile-data-line" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>; }
 
@@ -23,21 +25,42 @@ function Accounts() {
 }
 function Expense() { return <EntryFlow />; }
 const demoOperations = [
-  { day: '13 октября', title: 'Продукты', detail: 'Пятёрочка · Наличные', amount: '− 1 240 ₽', tone: 'negative', kind: 'cart', group: 'Расход', account: 'Наличные', category: 'Продукты', period: 'Октябрь 2026' },
-  { day: '13 октября', title: 'Между своими счетами', detail: 'Наличные → Банковский счёт', amount: '3 000 ₽', kind: 'transfer', group: 'Перевод', account: 'Наличные', category: '', period: 'Октябрь 2026' },
-  { day: '13 октября', title: 'Возврат долга', detail: 'Анна вернула · Наличные', amount: '+ 200 ₽', tone: 'positive', kind: 'person', group: 'Долг', account: 'Наличные', category: 'Долг', period: 'Октябрь 2026' },
-  { day: '12 октября', title: 'Зарплата', detail: 'Работа · Банковский счёт', amount: '+ 70 000 ₽', tone: 'positive', kind: 'briefcase', group: 'Доход', account: 'Банковский счёт', category: 'Зарплата', period: 'Октябрь 2026' },
-  { day: '12 октября', title: 'Кафе', detail: 'Завтрак · Наличные', amount: '− 450 ₽', tone: 'negative', kind: 'cup', group: 'Расход', account: 'Наличные', category: 'Кафе', period: 'Октябрь 2026' },
-  { day: '11 октября', title: 'Такси', detail: 'Наличные', amount: '− 320 ₽', tone: 'negative', kind: 'car', group: 'Расход', account: 'Наличные', category: 'Такси', period: 'Октябрь 2026' },
-  { day: '11 октября', title: 'На карту', detail: 'Банковский счёт → Наличные', amount: '5 000 ₽', kind: 'transfer', group: 'Перевод', account: 'Банковский счёт', category: '', period: 'Октябрь 2026' },
-  { day: '10 октября', title: 'Аренда', detail: 'Жильё · Банковский счёт', amount: '− 30 000 ₽', tone: 'negative', kind: 'house', group: 'Расход', account: 'Банковский счёт', category: 'Аренда', period: 'Октябрь 2026' },
-  { day: '10 октября', title: 'Возврат Тимуру', detail: 'Я вернул долг · Наличные', amount: '− 1 500 ₽', tone: 'negative', kind: 'person', group: 'Долг', account: 'Наличные', category: 'Долг', period: 'Октябрь 2026' },
-  { day: '9 октября', title: 'Продукты', detail: 'Пятёрочка · Наличные', amount: '− 500 ₽', tone: 'negative', kind: 'cart', group: 'Расход', account: 'Наличные', category: 'Продукты', period: 'Октябрь 2026' },
-  { day: '9 октября', title: 'Подработка', detail: 'Наличные', amount: '+ 2 000 ₽', tone: 'positive', kind: 'down', group: 'Доход', account: 'Наличные', category: 'Подработка', period: 'Октябрь 2026' },
-  { day: '8 октября', title: 'Долг Анне', detail: 'Выдал в долг · Наличные', amount: '− 800 ₽', tone: 'negative', kind: 'person', group: 'Долг', account: 'Наличные', category: 'Долг', period: 'Октябрь 2026' },
-  { day: '8 октября', title: 'Коммунальные', detail: 'Жильё · Банковский счёт', amount: '− 1 850 ₽', tone: 'negative', kind: 'bolt', group: 'Расход', account: 'Банковский счёт', category: 'Коммунальные', period: 'Октябрь 2026' }
+  { id: 'op-13-products', day: '13 октября', date: '13.10.2026', title: 'Продукты', detail: 'Пятёрочка · Наличные', amount: '− 1 240 ₽', tone: 'negative', kind: 'cart', group: 'Расход', account: 'Наличные', category: 'Продукты', tags: ['Дом'], period: 'Октябрь 2026' },
+  { id: 'op-13-transfer', day: '13 октября', date: '13.10.2026', title: 'Между своими счетами', detail: 'Наличные → Банковский счёт', amount: '3 000 ₽', kind: 'transfer', group: 'Перевод', account: 'Наличные', category: '', tags: [], period: 'Октябрь 2026' },
+  { id: 'op-13-debt', day: '13 октября', date: '13.10.2026', title: 'Возврат долга', detail: 'Анна вернула · Наличные', amount: '+ 200 ₽', tone: 'positive', kind: 'person', group: 'Долг', account: 'Наличные', category: 'Долг', tags: ['Семья'], period: 'Октябрь 2026' },
+  { id: 'op-12-salary', day: '12 октября', date: '12.10.2026', title: 'Зарплата', detail: 'Работа · Банковский счёт', amount: '+ 70 000 ₽', tone: 'positive', kind: 'briefcase', group: 'Доход', account: 'Банковский счёт', category: 'Зарплата', tags: ['Работа'], period: 'Октябрь 2026' },
+  { id: 'op-12-cafe', day: '12 октября', date: '12.10.2026', title: 'Кафе', detail: 'Завтрак · Наличные', amount: '− 450 ₽', tone: 'negative', kind: 'cup', group: 'Расход', account: 'Наличные', category: 'Кафе', tags: ['Командировка'], period: 'Октябрь 2026' },
+  { id: 'op-11-taxi', day: '11 октября', date: '11.10.2026', title: 'Такси', detail: 'Наличные', amount: '− 320 ₽', tone: 'negative', kind: 'car', group: 'Расход', account: 'Наличные', category: 'Такси', tags: ['Командировка'], period: 'Октябрь 2026' },
+  { id: 'op-11-transfer', day: '11 октября', date: '11.10.2026', title: 'На карту', detail: 'Банковский счёт → Наличные', amount: '5 000 ₽', kind: 'transfer', group: 'Перевод', account: 'Банковский счёт', category: '', tags: [], period: 'Октябрь 2026' },
+  { id: 'op-10-rent', day: '10 октября', date: '10.10.2026', title: 'Аренда', detail: 'Жильё · Банковский счёт', amount: '− 30 000 ₽', tone: 'negative', kind: 'house', group: 'Расход', account: 'Банковский счёт', category: 'Аренда', tags: ['Дом'], period: 'Октябрь 2026' },
+  { id: 'op-10-timur', day: '10 октября', date: '10.10.2026', title: 'Возврат Тимуру', detail: 'Я вернул долг · Наличные', amount: '− 1 500 ₽', tone: 'negative', kind: 'person', group: 'Долг', account: 'Наличные', category: 'Долг', tags: ['Семья'], period: 'Октябрь 2026' },
+  { id: 'op-9-products', day: '9 октября', date: '09.10.2026', title: 'Продукты', detail: 'Пятёрочка · Наличные', amount: '− 500 ₽', tone: 'negative', kind: 'cart', group: 'Расход', account: 'Наличные', category: 'Продукты', tags: ['Дом'], period: 'Октябрь 2026' },
+  { id: 'op-9-side', day: '9 октября', date: '09.10.2026', title: 'Подработка', detail: 'Наличные', amount: '+ 2 000 ₽', tone: 'positive', kind: 'down', group: 'Доход', account: 'Наличные', category: 'Подработка', tags: ['Работа'], period: 'Октябрь 2026' },
+  { id: 'op-8-anna', day: '8 октября', date: '08.10.2026', title: 'Долг Анне', detail: 'Выдал в долг · Наличные', amount: '− 800 ₽', tone: 'negative', kind: 'person', group: 'Долг', account: 'Наличные', category: 'Долг', tags: ['Семья'], period: 'Октябрь 2026' },
+  { id: 'op-8-utils', day: '8 октября', date: '08.10.2026', title: 'Коммунальные', detail: 'Жильё · Банковский счёт', amount: '− 1 850 ₽', tone: 'negative', kind: 'bolt', group: 'Расход', account: 'Банковский счёт', category: 'Коммунальные', tags: ['Дом'], period: 'Октябрь 2026' }
 ];
-function operationWord(count) {
+export function operationsWithTags() {
+  const saved = readOperationTags();
+  return [...readCreatedOperations(), ...demoOperations].map(item => Object.prototype.hasOwnProperty.call(saved, item.id) ? { ...item, tags: saved[item.id] } : item);
+}
+function signedAmount(item) {
+  if (item.group === 'Перевод') return 0;
+  if (item.currency && item.currency !== 'RUB') return 0;
+  if (item.amount && !String(item.amount).includes('₽')) return 0;
+  const raw = String(item.amount || '').replace(/[\s\u00a0\u202f]/g, '').replace('−', '-').replace(/[^\d.+-]/g, '');
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value === 0) return 0;
+  if (item.tone === 'negative' || item.group === 'Расход' || item.group === 'Долг' && String(item.amount).includes('−')) return -Math.abs(value);
+  if (item.tone === 'positive' || item.group === 'Доход' || String(item.amount).includes('+')) return Math.abs(value);
+  return 0;
+}
+export function DayHeading({ day, rows }) {
+  let spent = 0, received = 0;
+  rows.forEach(item => { const value = signedAmount(item); if (value < 0) spent += -value; else if (value > 0) received += value; });
+  const money = (value, sign) => `${sign} ${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(value)} ₽`;
+  return <div className="mobile-group-title"><span className="day-label">{day}<small>{rows.length} {operationWord(rows.length)}</small></span>{(spent > 0 || received > 0) && <span className="day-totals">{spent > 0 && <b className="negative">{money(spent, '−')}</b>}{received > 0 && <b className="positive">{money(received, '+')}</b>}</span>}</div>;
+}
+export function operationWord(count) {
   const mod = count % 100, digit = count % 10;
   if (mod > 10 && mod < 20) return 'операций';
   if (digit === 1) return 'операция';
@@ -52,19 +75,26 @@ function Journal() {
   const reportKind = params.get('kind') || '';
   const hasReportFilter = Boolean(reportCategory || reportPeriod || reportAccount || reportKind);
   const [query, setQuery] = useState(''), [group, setGroup] = useState('Все');
-  const shown = demoOperations.filter(item =>
+  const operations = operationsWithTags();
+  const shown = operations.filter(item =>
     (group === 'Все' || item.group === group) &&
     (!reportCategory || item.category === reportCategory) &&
     (!reportPeriod || item.period === reportPeriod) &&
     (!reportAccount || reportAccount === 'Все счета' || item.account === reportAccount) &&
     (!reportKind || item.group === reportKind) &&
-    `${item.title} ${item.detail} ${item.amount} ${item.day}`.toLowerCase().includes(query.toLowerCase())
+    `${item.title} ${item.detail} ${item.amount} ${item.day} ${(item.tags || []).join(' ')}`.toLowerCase().includes(query.toLowerCase())
   );
   const days = [...new Set(shown.map(item => item.day))];
-  return <><Topline title="Журнал" subtitle={reportPeriod || '8–13 октября'} accessory={<a className="circle-button" href={go('base-expense')} aria-label="Новая операция"><Icon name="plus" /></a>} />{hasReportFilter && <div className="journal-filter-note"><span>Из отчёта: {[reportCategory, reportPeriod, reportAccount !== 'Все счета' ? reportAccount : '', reportKind].filter(Boolean).join(' · ')}</span><a href={go('base-journal')}>Сбросить</a></div>}<label className="app-search"><Icon name="search" size={18} /><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Поиск по операциям" aria-label="Поиск по операциям" /></label><div className="search-scopes" role="group" aria-label="Тип операции">{['Все','Расход','Доход','Перевод','Долг'].map(value => <button type="button" key={value} className={group === value ? 'active' : ''} onClick={() => setGroup(value)}>{value}</button>)}</div>{days.length ? days.map(day => { const rows = shown.filter(item => item.day === day); return <div key={day}><div className="mobile-group-title">{day} <span>{rows.length} {operationWord(rows.length)}</span></div><div className="ledger-card">{rows.map(item => <OperationRow key={`${day}-${item.title}`} {...item} />)}</div></div>; }) : <p className="search-empty">Нет операций по этому фильтру</p>}<p className="mobile-hint">В журнале все факты: расход, доход, перевод и долг.</p></>;
+  return <><Topline title="Журнал" subtitle={reportPeriod || '8–13 октября'} accessory={<a className="circle-button" href={go('base-expense')} aria-label="Новая операция"><Icon name="plus" /></a>} />{hasReportFilter && <div className="journal-filter-note"><span>Из отчёта: {[reportCategory, reportPeriod, reportAccount !== 'Все счета' ? reportAccount : '', reportKind].filter(Boolean).join(' · ')}</span><a href={go('base-journal')}>Сбросить</a></div>}<label className="app-search"><Icon name="search" size={18} /><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Поиск по операциям" aria-label="Поиск по операциям" /></label><div className="search-scopes" role="group" aria-label="Тип операции">{['Все','Расход','Доход','Перевод','Долг'].map(value => <button type="button" key={value} className={group === value ? 'active' : ''} onClick={() => setGroup(value)}>{value}</button>)}</div>{days.length ? days.map(day => { const rows = shown.filter(item => item.day === day); return <div className="journal-day" key={day}><DayHeading day={day} rows={rows} /><div className="ledger-card journal-ledger">{rows.map(item => <OperationRow key={item.id} {...item} href={`${go('base-detail')}?op=${item.id}`} />)}</div></div>; }) : <p className="search-empty">Нет операций по этому фильтру</p>}<p className="mobile-hint">В журнале все факты: расход, доход, перевод и долг.</p></>;
 }
 function Transfer() { return <EntryFlow initialKind="Перевод" />; }
-function Detail() { return <><Topline title="Операция" back="base-journal" /><div className="detail-hero"><span className="detail-icon"><Icon name="food" size={29} /></span><h3>Продукты</h3><strong className="detail-amount--expense">− 500 ₽</strong><Badge tone="neutral">Сохранено на устройстве</Badge></div><MoneyRows rows={[["Счёт", "Наличные"],["Категория", "Продукты"],["Дата", "09.10.2026"],["Заметка", "Пятёрочка"]]} /><SectionHeading title="Доли участников" /><div className="mobile-info-card"><p>Анна должна 200 ₽ · Тимур должен 150 ₽ · Я оплатил 150 ₽</p><a href={go('share-link')}>Получить ссылку для участников →</a></div><SectionHeading title="История операции" /><div className="timeline"><p>Создана операция</p><small>09.10.2026 · на этом устройстве</small></div><Action to="base-expense">Изменить</Action><Action to="share-link" secondary>Поделиться расчётом</Action><Action to="base-cancel" danger>Отменить операцию</Action></>; }
+function Detail() {
+  const id = new URLSearchParams(window.location.hash.split('?')[1] || '').get('op') || 'op-9-products';
+  const item = operationsWithTags().find(operation => operation.id === id) || demoOperations.find(operation => operation.id === 'op-9-products');
+  const [tags, setTags] = useState(item.tags || []);
+  const [picking, setPicking] = useState(false);
+  return <><Topline title="Операция" back="base-journal" /><div className="detail-hero"><span className="detail-icon"><Icon name={item.kind} size={29} /></span><h3>{item.title}</h3><strong className={item.tone === 'negative' ? 'detail-amount--expense' : ''}>{item.amount}</strong><Badge tone="neutral">Сохранено на устройстве</Badge></div><div className="mobile-form-card"><div className="mobile-data-line"><span>Счёт</span><strong>{item.account}</strong></div><div className="mobile-data-line"><span>Категория</span><strong>{item.category || 'Перевод'}</strong></div><button type="button" className="mobile-data-line tag-edit" onClick={() => setPicking(true)}><span>Теги</span><strong>{tags.length ? tags.join(' · ') : 'Выбрать'}</strong></button><div className="mobile-data-line"><span>Дата</span><strong>{item.date}</strong></div><div className="mobile-data-line"><span>Заметка</span><strong>{item.detail.split(' · ')[0]}</strong></div></div>{item.id === 'op-9-products' && <><SectionHeading title="Доли участников" /><div className="mobile-info-card"><p>Анна должна 200 ₽ · Тимур должен 150 ₽ · Я оплатил 150 ₽</p><a href={go('share-link')}>Получить ссылку для участников →</a></div></>}<SectionHeading title="История операции" /><div className="timeline"><p>Создана операция</p><small>{item.date} · на этом устройстве</small></div><Action to="base-expense">Изменить</Action><Action to="share-link" secondary>Поделиться расчётом</Action><Action to="base-cancel" danger>Отменить операцию</Action>{picking && <TagPicker selected={tags} onApply={next => { writeOperationTags(item.id, next); setTags(next); setPicking(false); }} onClose={() => setPicking(false)} />}</>;
+}
 function Account() { const first = getFirstAccount(); if (first) return <><Topline title={first.name} back="base-accounts" /><MobileHero label="Остаток по учёту" amount={new Intl.NumberFormat('ru-RU').format(first.opening)} currency={currencySymbol(first.currency)} meta={`Валюта счёта · ${currencySymbol(first.currency)}`} /><div className="mobile-tabs"><a href={go('base-expense')}>− Расход</a><a href={go('base-expense')}>+ Доход</a><a href={go('base-transfer')}>Перевод</a></div><SectionHeading title="Связанные продукты" /><div className="mobile-info-card"><a href={go('deposit-detail')}><strong>Вклад TBC · USD</strong><p>10 145 $ · начислено +145 $</p></a><a href={go('loan-detail')}><strong>Ипотека TBC</strong><p>Остаток 48 000 $ · платёж 820 $ со счёта</p></a></div><p className="mobile-hint">Вклад не входит в доступный остаток кармана до выплаты. Кредит показан как отдельное обязательство.</p></>; return <><Topline title="Счёт" back="base-accounts" /><MobileHero label="Наличные" amount="8 500" meta="Остаток по учёту · ₽" /><div className="mobile-tabs"><a href={go('base-expense')}>− Расход</a><a href={go('base-expense')}>+ Доход</a><a href={go('base-transfer')}>Перевести</a></div><SectionHeading title="Операции по счёту" /><div className="ledger-card"><OperationRow title="Продукты" detail="Пятёрочка" amount="− 500 ₽" tone="negative" /><OperationRow title="Подработка" detail="Наличные" amount="+ 2 000 ₽" tone="positive" kind="down" /></div><SectionHeading title="Связанные продукты" /><div className="mobile-info-card"><a href={go('deposit-detail')}><strong>Вклад TBC · USD</strong><p>10 145 $ · доход +145 $</p></a><a href={go('loan-detail')}><strong>Платёж по ипотеке</strong><p>820 $ · списание с TBC · USD кармана</p></a></div><div className="mobile-data-line standalone"><span>Начальный остаток</span><strong>10 000 ₽</strong></div><p className="mobile-hint">Если фактическая сумма отличается, сверку выполним отдельным действием.</p></>; }
 function Cancel() { return <><Topline title="Отмена операции" back="base-detail" /><div className="detail-hero"><span className="detail-icon"><Icon name="clock" size={30} /></span><h3>Убрать из расчёта?</h3><strong>500 ₽</strong></div><p className="mobile-hint">Запись останется в истории. Её сумма перестанет влиять на остатки и итоги.</p><MoneyRows rows={[["Счёт", "Наличные"],["Сейчас", "8 500 ₽"],["После отмены", "9 000 ₽"]]} /><Action to="base-detail">Отменить операцию</Action><Action to="base-detail" secondary>Оставить как есть</Action></>; }
 function Settings() {
@@ -83,7 +113,7 @@ function Settings() {
 function GlobalSearch() {
   const [query, setQuery] = useState(''), [scope, setScope] = useState('Всё');
   const index = [
-    ...demoOperations.map(item => ({ title: item.title, detail: `${item.detail} · ${item.amount}`, group: 'Операции', to: 'base-detail', icon: item.kind || 'food' })),
+    ...operationsWithTags().map(item => ({ title: item.title, detail: `${item.detail} · ${item.amount}${(item.tags || []).length ? ` · ${item.tags.join(', ')}` : ''}`, group: 'Операции', to: `base-detail?op=${item.id}`, icon: item.kind || 'food' })),
     ...getAccountRows().map(item => ({ title: item.name, detail: item.type, group: 'Счета', to: item.multi ? 'pockets' : 'base-account', icon: item.icon || 'wallet' })),
     ...['Расход', 'Доход'].flatMap(kind => CATEGORY_TREE[kind].flatMap(parent => parent.children.map(([name, icon]) => ({ title: name, detail: kind + ' · ' + parent.name, group: 'Справочники', to: 'base-settings', icon })))),
     ...readDirectory().categories.map(item => ({ title: item.name, detail: item.kind + ' · ' + item.parent, group: 'Справочники', to: 'base-settings', icon: item.icon || 'star' })),
@@ -124,7 +154,6 @@ function overviewClass(id) {
 function Extended({ screen }) {
   const fields = screen.elements.filter(item => item.type === 'input');
   const notes = screen.elements.filter(item => item.type === 'text');
-  const actions = screen.elements.filter(item => item.type === 'action');
   const headline = fields.find(field => /^[+\-−]?\d[\d\s\u00a0]*(?:[,.]\d+)?\s*(?:%|[₽$€₾£₫₩]|[A-Z]{3})?$/.test(String(field.target || '').trim()) && !/дата|сумм|лимит|ставк|количеств|порог|комисс|плат|цена|процент/i.test(field.value));
   const body = fields.filter(field => field !== headline);
   const lead = notes[0]?.value;
@@ -137,7 +166,6 @@ function Extended({ screen }) {
       if (progress) return <article className="goal-card" key={`${field.value}-${index}`}><header><strong>{field.value.replace(/^Цель [«"]|[»"]$/g, '')}</strong><b>{progress.ratio}%</b></header><small>{progress.current} из {progress.total}</small><div className="desktop-loan-track"><span style={{ width: `${progress.ratio}%` }} /></div></article>;
       return <PrototypeField key={`${field.value}-${index}`} label={field.value} value={field.target || ''} icon={fieldIcon(field.value)} />;
     })}</div></section>}
-    {actions.length > 0 && <aside className="desktop-detail"><small>ПО ЭТОЙ ТЕМЕ</small><h3>Действия</h3>{notes.slice(lead ? 1 : 0).map((item, index) => <p key={index}>{item.value}</p>)}<div>{actions.map((item, index) => <a key={`${item.target}-${index}`} href={go(item.target)}>{item.value}<Icon name="chevron" size={15} /></a>)}</div></aside>}
   </>;
 }
 export default function Phone({ screen }) { const View=coreViews[screen.id] || coverageViews[screen.id] || captureViews[screen.id]; return <article className="phone" data-screen={screen.id}><StatusBar /><div className="phone-scroll" key={screen.id}>{View?<View screen={screen}/>:<Extended screen={screen}/>}</div><MobileNav id={screen.id}/><div className="home-indicator"/></article>; }
