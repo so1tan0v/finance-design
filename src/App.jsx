@@ -2,11 +2,12 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Brandbook from './pages/Brandbook.jsx';
 import Kit from './pages/Kit.jsx';
 import Screens from './pages/Screens.jsx';
+import Desktop from './pages/Desktop.jsx';
 import Scenarios from './pages/Scenarios.jsx';
 import Docs from './pages/Docs.jsx';
 import { screens, scenarios } from './data/screens.js';
 
-const tabs = [['brandbook', 'Brandbook'], ['kit', 'UI Kit'], ['screens', 'Экраны'], ['scenarios', 'Сценарии'], ['docs', 'Документация']];
+const tabs = [['brandbook', 'Brandbook'], ['kit', 'UI Kit'], ['screens', 'Экраны'], ['desktop', 'Desktop'], ['scenarios', 'Сценарии'], ['docs', 'Документация']];
 const docAnchors = new Set(['source', 'architecture', 'rules', 'clickability', 'limits', 'docker']);
 const readRoute = () => {
   const hash = decodeURIComponent(window.location.hash.slice(1) || 'brandbook');
@@ -36,8 +37,9 @@ export default function App() {
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
-  const [section, id] = route.split('/');
+  const [section, ...routeParts] = route.split('/');
+  const id = routeParts.join('/').split('?')[0];
   const active = tabs.some(([key]) => key === section) ? section : 'brandbook';
   useEffect(() => { document.title = `Finance — ${tabs.find(([key]) => key === active)?.[1] || 'Дизайн-система'}`; }, [active]);
-  return <div className="app-shell"><div className="site-header-bar" ref={headerRef}><header className="site-header"><a className="brand" href="#brandbook"><span className="brand-mark">F</span><span>Finance<small>Design system</small></span></a><nav className="site-nav" aria-label="Разделы дизайна">{tabs.map(([key, label]) => <a href={`#${key}`} key={key} className={active === key ? 'active' : ''} aria-current={active === key ? 'page' : undefined}>{label}</a>)}</nav><div className="header-meta">Дизайн-прототип · 390 × 844<br />{screens.length} экрана · {scenarios.length} сценариев</div></header></div><main className="page" id="main">{active === 'brandbook' && <Brandbook />}{active === 'kit' && <Kit />}{active === 'screens' && <Screens selectedId={id} />}{active === 'scenarios' && <Scenarios />}{active === 'docs' && <Docs anchor={id} />}</main></div>;
+  return <div className="app-shell"><div className="site-header-bar" ref={headerRef}><header className="site-header"><a className="brand" href="#brandbook"><span className="brand-mark">F</span><span>Finance<small>Design system</small></span></a><nav className="site-nav" aria-label="Разделы дизайна">{tabs.map(([key, label]) => <a href={`#${key}`} key={key} className={active === key ? 'active' : ''} aria-current={active === key ? 'page' : undefined}>{label}</a>)}</nav><div className="header-meta">Мобильный и настольный концепт<br />{screens.length} экрана · {scenarios.length} сценариев</div></header></div><main className="page" id="main">{active === 'brandbook' && <Brandbook />}{active === 'kit' && <Kit />}{active === 'screens' && <Screens selectedId={id} />}{active === 'desktop' && <Desktop selectedId={id} />}{active === 'scenarios' && <Scenarios />}{active === 'docs' && <Docs anchor={id} />}</main></div>;
 }

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { screens, screenMap, groups, scenarios } from '../src/data/screens.js';
 
 const assert = (condition, message) => { if (!condition) throw new Error(message); };
-assert(screens.length === 159, `Ожидалось 159 экранов, получено ${screens.length}`);
+assert(screens.length === 172, `Ожидалось 172 экрана, получено ${screens.length}`);
 assert(screenMap.size === screens.length, 'Повторяющиеся ID экранов');
 assert(screens.filter(screen => screen.figmaNode).length === 45, 'Потеряна связь с 45 кадрами Figma');
 for (const screen of screens) for (const item of screen.elements) if (item.type === 'action') assert(screenMap.has(item.target), `${screen.id} → ${item.target}: целевой экран отсутствует`);
@@ -10,7 +10,18 @@ for (const group of groups) for (const id of group.ids) assert(screenMap.has(id)
 for (const scenario of scenarios) for (const id of scenario.ids) assert(screenMap.has(id), `Нет экрана ${id} в сценарии`);
 const allGrouped = groups.flatMap(group => group.ids);
 assert(new Set(allGrouped).size === screens.length && allGrouped.length === screens.length, 'Список экранов неполон или содержит повторы');
+const requiredCoverage = ['split-method','split-income','review-queue','review-detail','trip-invite','trip-unallocated','trip-close','rule-explain'];
+for (const id of requiredCoverage) assert(screenMap.has(id), `Не найдено дополнение покрытия ${id}`);
+const requiredTransitions = [['trip-detail','trip-invite'],['trip-detail','trip-unallocated'],['trip-unallocated','trip-close'],['rules','rule-explain'],['op-split','split-method']];
+for (const [from,to] of requiredTransitions) assert(screenMap.get(from).elements.some(item => item.type === 'action' && item.target === to), `Нет перехода ${from} → ${to}`);
+const entrySource = readFileSync(new URL('../src/components/FinanceFlows.jsx', import.meta.url), 'utf8');
+const captureSource = readFileSync(new URL('../src/components/CaptureFlows.jsx', import.meta.url), 'utf8');
+for (const id of ['receipt','qr-receipt']) assert(entrySource.includes(`href('${id}')`) && captureSource.includes(id), `Нет входа в сканирование ${id}`);
+assert(entrySource.includes('href = screenHref'), 'Мобильные переходы формы операции потеряны');
+const desktopSource = readFileSync(new URL('../src/pages/Desktop.jsx', import.meta.url), 'utf8');
+const desktopExtras = readFileSync(new URL('../src/pages/DesktopExtras.jsx', import.meta.url), 'utf8');
+for (const id of ['portable','reminder','shortcuts','image']) assert(desktopSource.includes(`'${id}'`) && desktopExtras.includes(`${id}:`), `Нет настольного сценария ${id}`);
 const dockerfile = readFileSync(new URL('../Dockerfile', import.meta.url), 'utf8');
 assert(dockerfile.includes('npm ci') && dockerfile.includes('npm run build'), 'Dockerfile должен собирать приложение');
-assert(scenarios.length === 20, `Ожидалось 20 сценариев, получено ${scenarios.length}`);
+assert(scenarios.length === 25, `Ожидалось 25 сценариев, получено ${scenarios.length}`);
 console.log(JSON.stringify({ screens: screens.length, figmaScreens: 45, actions: screens.flatMap(screen => screen.elements).filter(item => item.type === 'action').length, scenarios: scenarios.length, groups: groups.length, status: 'passed' }));

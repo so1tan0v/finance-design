@@ -3,6 +3,8 @@ import React, { useId, useState } from 'react';
 export const screenHref = id => `#screens/${id}`;
 
 const iconPaths = {
+  camera:'M3 7h4l2-3h6l2 3h4v13H3zM12 10a4 4 0 1 0 0 8 4 4 0 0 0 0-8z',
+  qr:'M3 3h7v7H3zM5.5 5.5h2v2h-2zM14 3h7v7h-7zM16.5 5.5h2v2h-2zM3 14h7v7H3zM5.5 16.5h2v2h-2zM14 14h2v2h-2zM19 14h2v2h-2zM14 19h2v2h-2zM17 17h2v2h-2zM20 19h1v2h-1z',
   wallet:'M4 7h14a2 2 0 0 1 2 2v10H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h13v2M16 11h6v5h-6zM18 13.5h.1',
   bank:'M3 9h18M5 9v10M10 9v10M15 9v10M20 9v10M2 20h20M12 3l10 5H2z',
   food:'M5 3v7M8 3v7M3 7h7M6.5 10v11M16 3v18M16 3c5 3 5 8 0 8',
