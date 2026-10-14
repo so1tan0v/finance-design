@@ -1,4 +1,5 @@
-import React, { useId, useState } from 'react';
+import React, { useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 export const screenHref = id => `#screens/${id}`;
 
@@ -37,7 +38,89 @@ const iconPaths = {
   shield:'M12 2l8 3v6c0 6-8 11-8 11S4 17 4 11V5zM8 11l3 3 5-6',
   check:'M5 12l4 4L19 6', dots:'M5 12h.1M12 12h.1M19 12h.1', clock:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M12 7v5l3 2'
 };
+export const iconPrinciples = [
+  ['Линия', 'Контур 1,7 px, скруглённые концы. Без заливки.'],
+  ['Размер', '22 px в строке, 18 px в поле, 25 px только у кнопки «плюс».'],
+  ['Цвет', 'Иконка берёт цвет текста. Свой цвет — только у выбранного состояния.'],
+  ['Смысл', 'Иконка стоит рядом со словом и не заменяет подпись.']
+];
+export const iconGroups = [
+  ['Навигация', ['list', 'house', 'plus', 'chart', 'more', 'search']],
+  ['Деньги', ['wallet', 'bank', 'transfer', 'cart', 'budget', 'tag']],
+  ['Люди и вещи', ['person', 'car', 'cup', 'briefcase', 'heart', 'gift']],
+  ['Состояния', ['check', 'clock', 'shield', 'calendar', 'note', 'dots']]
+];
 export function Icon({ name, size = 22, className = '' }) { return <svg className={`icon ${className}`} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={iconPaths[name] || iconPaths.wallet} /></svg>; }
+export function formatIsoDate(iso) {
+  if (!iso) return '';
+  const [year, month, day] = String(iso).split('-');
+  return day ? `${Number(day)}.${month}.${year}` : iso;
+}
+const CALENDAR_MONTHS = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'];
+const CALENDAR_WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+export function DateCalendar({ from = '', to = '', onPick, mode = 'range' }) {
+  const initial = from ? new Date(`${from}T00:00:00`) : new Date();
+  const [cursor, setCursor] = useState(new Date(initial.getFullYear(), initial.getMonth(), 1));
+  const year = cursor.getFullYear(), month = cursor.getMonth();
+  const lead = (new Date(year, month, 1).getDay() + 6) % 7;
+  const count = new Date(year, month + 1, 0).getDate();
+  const today = new Date();
+  const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const ranged = mode === 'range' && Boolean(from && to && from !== to);
+  const start = ranged ? (from < to ? from : to) : from;
+  const end = ranged ? (from < to ? to : from) : '';
+  const cells = [...Array(lead).fill(null), ...Array.from({ length: count }, (_, index) => index + 1)];
+  return <div className="date-calendar"><div className="date-calendar-head"><button type="button" aria-label="Предыдущий месяц" onClick={() => setCursor(new Date(year, month - 1, 1))}><Icon name="chevron" size={16} className="date-calendar-prev" /></button><strong>{`${CALENDAR_MONTHS[month][0].toUpperCase()}${CALENDAR_MONTHS[month].slice(1)} ${year}`}</strong><button type="button" aria-label="Следующий месяц" onClick={() => setCursor(new Date(year, month + 1, 1))}><Icon name="chevron" size={16} /></button></div><div className="date-calendar-week">{CALENDAR_WEEKDAYS.map((day, index) => <span key={day} className={index > 4 ? 'weekend' : ''}>{day}</span>)}</div><div className="date-calendar-grid">{cells.map((day, index) => {
+    if (!day) return <span key={`empty-${index}`} />;
+    const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const column = (lead + day - 1) % 7;
+    const picked = end ? iso >= start && iso <= end : iso === start;
+    const roundLeft = picked && (iso === start || column === 0);
+    const roundRight = picked && ((end ? iso === end : true) || column === 6);
+    const classes = [picked ? 'picked' : '', roundLeft ? 'round-left' : '', roundRight ? 'round-right' : '', iso === todayIso && !picked ? 'today' : '', column > 4 && !picked ? 'weekend' : ''].filter(Boolean).join(' ');
+    return <button type="button" key={iso} className={classes} aria-pressed={picked} onClick={() => onPick(iso)}>{day}</button>;
+  })}</div></div>;
+}
+export function DateField({ label, value, onChange }) {
+  const anchor = useRef(null);
+  const [host, setHost] = useState(null);
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(value || '');
+  const inPhone = Boolean(host?.classList?.contains('phone'));
+  return <>
+    <button ref={anchor} type="button" className="flow-inline date-field" onClick={() => { setDraft(value || ''); setHost(anchor.current?.closest('.phone') || document.body); setOpen(true); }}><span>{label}</span><strong>{formatIsoDate(value) || 'Выбрать'}</strong></button>
+    {open && host && createPortal(<div className={`flow-overlay date-field-overlay${inPhone ? '' : ' date-field-overlay--page'}`} role="dialog" aria-label={label}><div className="flow-sheet"><div className="sheet-head"><strong>{label}</strong><button type="button" onClick={() => setOpen(false)} aria-label="Закрыть">×</button></div><DateCalendar mode="single" from={draft} onPick={setDraft} /><button type="button" className="flow-primary date-calendar-apply" disabled={!draft} onClick={() => { onChange(draft); setOpen(false); }}>Выбрать</button></div></div>, host)}
+  </>;
+}
+export const chartPalette = [
+  { name: 'Лес', hex: '#225C46', role: 'Главная доля и линия баланса' },
+  { name: 'Янтарь', hex: '#C56A1A', role: 'Вторая категория' },
+  { name: 'Бирюза', hex: '#1C6E86', role: 'Третья категория' },
+  { name: 'Киноварь', hex: '#AD3D38', role: 'Расход и снижение' },
+  { name: 'Лист', hex: '#2F8F5B', role: 'Доход и рост' },
+  { name: 'Слива', hex: '#5C4A86', role: 'Запасной цвет серии' }
+];
+export function DonutChart({ segments, centerLabel, centerValue, onSelect }) {
+  const total = segments.reduce((sum, item) => sum + item.value, 0) || 1;
+  let previous = 0;
+  const gradient = segments.map(item => {
+    const start = previous;
+    previous += item.value / total * 100;
+    return `${item.color} ${start}% ${previous}%`;
+  }).join(',');
+  return <div className="report-panel"><div className="report-chart"><div className="donut" style={{ background: `conic-gradient(${gradient})` }}><div><small>{centerLabel}</small><strong>{centerValue}</strong></div></div><div className="report-legend">{segments.map(item => <button type="button" key={item.label} onClick={onSelect ? () => onSelect(item.label) : undefined}><i style={{ background: item.color }} /><span>{item.label}</span><strong>{Math.round(item.value / total * 100)}%</strong></button>)}</div></div></div>;
+}
+export function TrendChart({ title, points, labels, valueLabel, tone = 'green' }) {
+  const width = 320, height = 142, padX = 14, padY = 18;
+  const values = points.map(point => Number(point) || 0), min = Math.min(...values), max = Math.max(...values), span = max - min || 1;
+  const coords = values.map((value, index) => [padX + index * (width - 2 * padX) / Math.max(1, values.length - 1), height - padY - (value - min) / span * (height - 2 * padY)]);
+  const line = coords.map(([x, y]) => `${x},${y}`).join(' ');
+  const fill = `${padX},${height - padY} ${line} ${width - padX},${height - padY}`;
+  return <section className="report-panel product-chart-card"><div className="product-chart-head"><strong>{title}</strong><span>{valueLabel}</span></div><svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${title}: ${values.join(', ')}`} className={`product-trend ${tone}`}><line x1={padX} y1={height * .28} x2={width - padX} y2={height * .28} /><line x1={padX} y1={height * .62} x2={width - padX} y2={height * .62} /><polygon points={fill} /><polyline points={line} />{coords.map(([x, y], index) => <circle key={index} cx={x} cy={y} r="3.5" />)}</svg><div className="product-chart-labels">{labels.map(label => <small key={label}>{label}</small>)}</div></section>;
+}
+export function DataTable({ caption, columns, rows }) {
+  return <div className="kit-table">{caption && <div className="kit-table-caption">{caption}</div>}<table><thead><tr>{columns.map(column => <th key={column}>{column}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={index}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>)}</tbody></table></div>;
+}
 
 export function BrandMark({ size = 38 }) {
   return <span className="brand-mark" style={{ width: size, height: size }} aria-hidden="true"><img src="/logo-mark.png" alt="" width={size} height={size} /></span>;
@@ -87,8 +170,9 @@ export function MobileHero({ label, amount, currency = '₽', footer, meta }) {
   return <div className="mobile-hero"><div className="mobile-hero-label">{label}<Icon name="wallet" size={18} /></div><div className="mobile-hero-number">{amount}<span>{currency}</span></div>{footer && <div className="mobile-hero-summary">{footer.map(([caption, value]) => <div key={caption}><small>{caption}</small><strong>{value}</strong></div>)}</div>}{meta && <div className="mobile-hero-meta">{meta}</div>}</div>;
 }
 
-export function AccountTile({ title, subtitle, amount, href, kind = 'wallet' }) {
-  return <a className="account-tile" href={href}><span className={`account-tile-icon ${kind === 'bank' ? 'bank' : ''}`}><Icon name={kind} /></span><span className="account-tile-copy"><strong>{title}</strong><small>{subtitle}</small></span><strong className="account-tile-amount">{amount}</strong></a>;
+export function AccountTile({ title, subtitle, amount, href, kind = 'wallet', mark }) {
+  const body = <><span className={`account-tile-icon ${kind === 'bank' ? 'bank' : ''}`}>{mark ? <span className="account-tile-mark">{mark}</span> : <Icon name={kind} />}</span><span className="account-tile-copy"><strong>{title}</strong>{subtitle && <small>{subtitle}</small>}</span><strong className="account-tile-amount">{amount}</strong></>;
+  return href ? <a className="account-tile" href={href}>{body}</a> : <div className="account-tile">{body}</div>;
 }
 
 export function MobileFormField({ label, value, icon = 'note', type = 'text' }) {

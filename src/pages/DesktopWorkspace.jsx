@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Icon } from '../components/ui.jsx';
-import { DayHeading, operationsWithTags } from '../components/Phone.jsx';
+import { DayHeading, JournalDateFilter, matchesDateFilter, operationsWithTags } from '../components/Phone.jsx';
+import { currencySymbol, getAccountRows } from '../components/FinanceFlows.jsx';
 
 const href = id => id.startsWith('@') ? `#desktop/${id.slice(1)}` : `#desktop/screen/${id}`;
 
@@ -13,8 +14,10 @@ function DesktopJournal() {
   const hasReportFilter = Boolean(reportCategory || reportPeriod || reportAccount || reportKind);
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState('Все');
+  const [dates, setDates] = useState(null);
   const shown = operationsWithTags().filter(item =>
     (group === 'Все' || item.group === group) &&
+    matchesDateFilter(item, dates) &&
     (!reportCategory || item.category === reportCategory) &&
     (!reportPeriod || item.period === reportPeriod) &&
     (!reportAccount || reportAccount === 'Все счета' || item.account === reportAccount) &&
@@ -22,11 +25,12 @@ function DesktopJournal() {
     `${item.title} ${item.detail} ${item.amount} ${item.day} ${(item.tags || []).join(' ')}`.toLowerCase().includes(query.toLowerCase())
   );
   const days = [...new Set(shown.map(item => item.day))];
-  return <div className="desktop-content desktop-content--journal"><section className="desktop-journal">{hasReportFilter && <div className="desktop-journal-filter"><span>Из отчёта: {[reportCategory, reportPeriod, reportAccount !== 'Все счета' ? reportAccount : '', reportKind].filter(Boolean).join(' · ')}</span><a href="#desktop/journal">Сбросить</a></div>}<label className="app-search"><Icon name="search" size={18} /><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Поиск по операциям" aria-label="Поиск по операциям" /></label><div className="search-scopes" role="group" aria-label="Тип операции">{['Все','Расход','Доход','Перевод','Долг'].map(value => <button type="button" key={value} className={group === value ? 'active' : ''} onClick={() => setGroup(value)}>{value}</button>)}</div>{days.length ? days.map(day => { const rows = shown.filter(item => item.day === day); return <div className="journal-day" key={day}><DayHeading day={day} rows={rows} /><div className="ledger-card journal-ledger">{rows.map(item => <a className="operation-row" href={`#screens/base-detail?op=${item.id}`} key={item.id}><span className={`operation-icon ${item.kind === 'food' ? 'food' : ''}`}><Icon name={item.kind || 'food'} /></span><span className="operation-copy"><strong>{item.title}</strong><small>{item.detail}</small>{item.tags?.length > 0 && <span className="operation-tags">{item.tags.map(tag => <em key={tag}>{tag}</em>)}</span>}</span><strong className={`operation-amount ${item.tone || ''}`}>{item.amount}</strong></a>)}</div></div>; }) : <p className="search-empty">Нет операций по этому фильтру</p>}<p className="mobile-hint">В журнале все факты: расход, доход, перевод и долг.</p></section></div>;
+  return <div className="desktop-content desktop-content--journal"><section className="desktop-journal">{hasReportFilter && <div className="desktop-journal-filter"><span>Из отчёта: {[reportCategory, reportPeriod, reportAccount !== 'Все счета' ? reportAccount : '', reportKind].filter(Boolean).join(' · ')}</span><a href="#desktop/journal">Сбросить</a></div>}<div className="journal-search-row"><label className="app-search"><Icon name="search" size={18} /><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Поиск по операциям" aria-label="Поиск по операциям" /></label><JournalDateFilter value={dates} onChange={setDates} /></div><div className="search-scopes" role="group" aria-label="Тип операции">{['Все','Расход','Доход','Перевод','Долг'].map(value => <button type="button" key={value} className={group === value ? 'active' : ''} onClick={() => setGroup(value)}>{value}</button>)}</div>{days.length ? days.map(day => { const rows = shown.filter(item => item.day === day); return <div className="journal-day" key={day}><DayHeading day={day} rows={rows} /><div className="ledger-card journal-ledger">{rows.map(item => <a className="operation-row" href={`#screens/base-detail?op=${item.id}`} key={item.id}><span className={`operation-icon ${item.kind === 'food' ? 'food' : ''}`}><Icon name={item.kind || 'food'} /></span><span className="operation-copy"><strong>{item.title}</strong><small>{item.detail}</small>{item.tags?.length > 0 && <span className="operation-tags">{item.tags.map(tag => <em key={tag}>{tag}</em>)}</span>}</span><strong className={`operation-amount ${item.tone || ''}`}>{item.amount}</strong></a>)}</div></div>; }) : <p className="search-empty">Нет операций по этому фильтру</p>}<p className="mobile-hint">В журнале все факты: расход, доход, перевод и долг.</p></section></div>;
 }
 
-function AccountsView({ area }) {
-  return <div className="desktop-account-list">{area.rows.map(([name, currency, balance, pending, updated], index) => <div className="desktop-account-row" key={name}><span className={`desktop-account-icon desktop-account-icon--${index}`}><Icon name={index === 1 ? 'wallet' : 'bank'} size={20} /></span><span className="desktop-account-name"><strong>{name}</strong><small>{currency} · Сверка {updated}</small></span><span className="desktop-account-balance"><strong>{balance}</strong><small>{pending === '—' ? 'В пути нет' : `В пути ${pending}`}</small></span></div>)}</div>;
+function AccountsView() {
+  const rows = getAccountRows();
+  return <div className="desktop-account-list">{rows.map((item, index) => <a className="desktop-account-row" href={`#screens/${item.multi ? 'pockets' : 'base-account'}?account=${encodeURIComponent(item.name)}`} key={item.name}><span className={`desktop-account-icon desktop-account-icon--${index % 3}`}><Icon name={item.icon || 'wallet'} size={20} /></span><span className="desktop-account-name"><strong>{item.name}</strong><small>{item.type}</small></span><span className="desktop-account-balance"><strong>{item.multi ? item.currencies.map(currencySymbol).join(' · ') : `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(item.balance)} ${currencySymbol(item.currency)}`}</strong></span></a>)}</div>;
 }
 
 function PlanningView({ area }) {
@@ -46,11 +50,11 @@ function DebtsView({ area }) {
 }
 
 function DepositsView({ area }) {
-  return <div className="desktop-product-grid">{area.rows.map(([name, rate, accrued, paid, date], index) => <article className="desktop-product-card" key={name}><span className="desktop-product-symbol"><Icon name={index ? 'bank' : 'wallet'} size={22} /></span><small>ВКЛАД</small><h4>{name}</h4><strong className="desktop-product-rate">{rate}</strong><div><span>Начислено</span><b>{accrued}</b></div><div><span>Выплачено</span><b>{paid}</b></div><footer>Следующая дата · {date}</footer></article>)}</div>;
+  return <div className="desktop-account-list">{area.rows.map(([name, rate, accrued, paid, date], index) => <a className="desktop-account-row" href="#screens/deposit-detail" key={name}><span className={`desktop-account-icon desktop-account-icon--${index % 3}`}><Icon name={index ? 'bank' : 'wallet'} size={20} /></span><span className="desktop-account-name"><strong>{name}</strong><small>{rate} · выплата {date}</small></span><span className="desktop-account-balance"><strong>{accrued}</strong><small>выплачено {paid}</small></span></a>)}</div>;
 }
 
 function LoansView({ area }) {
-  return <div className="desktop-loan-list">{area.rows.map(([name, payment, principal, interest, date], index) => <article className="desktop-loan-card" key={name}><div><span className="desktop-loan-icon"><Icon name={index ? 'bank' : 'car'} size={19} /></span><span><strong>{name}</strong><small>Следующий платёж · {date}</small></span><b>{payment}</b></div><div className="desktop-loan-track"><span style={{ width: `${Math.round(Number(principal.replace(/\D/g, '')) / Number(payment.replace(/\D/g, '')) * 100)}%` }} /></div><footer><span>Основной долг {principal}</span><span>Проценты {interest}</span></footer></article>)}</div>;
+  return <div className="desktop-account-list">{area.rows.map(([name, payment, principal, interest, date], index) => <a className="desktop-account-row" href="#screens/loan-detail" key={name}><span className={`desktop-account-icon desktop-account-icon--${index % 3}`}><Icon name={index ? 'bank' : 'car'} size={20} /></span><span className="desktop-account-name"><strong>{name}</strong><small>долг {principal} · проценты {interest}</small></span><span className="desktop-account-balance"><strong>{payment}</strong><small>платёж {date}</small></span></a>)}</div>;
 }
 
 function ReportsView({ area }) {
@@ -67,7 +71,7 @@ const captions = { journal: 'Последние операции', accounts: 'С
 export default function DesktopWorkspace({ area }) {
   if (area.id === 'journal') return <DesktopJournal />;
   const View = views[area.id];
-  const visibleCount = area.rows.length;
+  const visibleCount = area.id === 'accounts' ? getAccountRows().length : area.rows.length;
   const recordWord = visibleCount % 10 === 1 && visibleCount % 100 !== 11 ? 'запись' : [2,3,4].includes(visibleCount % 10) && ![12,13,14].includes(visibleCount % 100) ? 'записи' : 'записей';
-  return <><div className={`desktop-overview desktop-overview--${area.id}`}><div><small>{area.metricLabel}</small><strong>{area.metric}</strong></div><p>{area.lead}</p></div><div className="desktop-content"><section className="desktop-table-card"><div className="desktop-card-head"><div><span className="desktop-card-kicker">ЛИЧНАЯ КНИГА</span><h3>{captions[area.id]}</h3></div><span>{visibleCount} {area.id === 'reports' ? 'категории' : area.id === 'budget' ? 'бюджета' : recordWord}</span></div><View area={area} /></section></div></>;
+  return <><div className={`desktop-overview desktop-overview--${area.id}`}><div><small>{area.metricLabel}</small><strong>{area.metric}</strong></div><p>{area.lead}</p></div><div className="desktop-content"><section className="desktop-table-card"><div className="desktop-card-head"><div><span className="desktop-card-kicker">ЛИЧНАЯ КНИГА</span><h3>{captions[area.id]}</h3></div><span>{visibleCount} {area.id === 'reports' ? 'категории' : area.id === 'budget' ? 'бюджета' : area.id === 'accounts' ? 'счёта' : recordWord}</span></div><View area={area} /></section></div></>;
 }

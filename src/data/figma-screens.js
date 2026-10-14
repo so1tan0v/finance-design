@@ -245,7 +245,7 @@ export const figmaScreens = [
   {
     "id": "saved",
     "title": "Операция сохранена",
-    "subtitle": "Сохранено на устройстве",
+    "subtitle": "Запись в журнале",
     "figmaNode": "13:132",
     "elements": [
       {
