@@ -1,7 +1,11 @@
 import React, { useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-export const screenHref = id => `#screens/${id}`;
+export const screenHref = id => {
+  const device = new URLSearchParams(window.location.hash.split('?')[1] || '').get('device');
+  if (device !== 'tablet' && device !== 'desktop') return `#screens/${id}`;
+  return `#screens/${id}${String(id).includes('?') ? '&' : '?'}device=${device}`;
+};
 
 const iconPaths = {
   camera:'M3 7h4l2-3h6l2 3h4v13H3zM12 10a4 4 0 1 0 0 8 4 4 0 0 0 0-8z',

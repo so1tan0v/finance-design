@@ -18,9 +18,10 @@ const entrySource = readFileSync(new URL('../src/components/FinanceFlows.jsx', i
 const captureSource = readFileSync(new URL('../src/components/CaptureFlows.jsx', import.meta.url), 'utf8');
 for (const id of ['receipt','qr-receipt']) assert(entrySource.includes(`href('${id}')`) && captureSource.includes(id), `Нет входа в сканирование ${id}`);
 assert(entrySource.includes('href = screenHref'), 'Мобильные переходы формы операции потеряны');
-const desktopSource = readFileSync(new URL('../src/pages/Desktop.jsx', import.meta.url), 'utf8');
-const desktopExtras = readFileSync(new URL('../src/pages/DesktopExtras.jsx', import.meta.url), 'utf8');
-for (const id of ['portable','reminder','shortcuts','image']) assert(desktopSource.includes(`'${id}'`) && desktopExtras.includes(`${id}:`), `Нет настольного сценария ${id}`);
+const screensPage = readFileSync(new URL('../src/pages/Screens.jsx', import.meta.url), 'utf8');
+const phoneSource = readFileSync(new URL('../src/components/Phone.jsx', import.meta.url), 'utf8');
+for (const form of ['phone', 'tablet', 'desktop']) assert(screensPage.includes(`${form}:`), `Нет кадра ${form}`);
+assert(phoneSource.includes('phone-wide') && phoneSource.includes('phone-form-'), 'Широкий кадр не собран из мобильной оболочки');
 const dockerfile = readFileSync(new URL('../Dockerfile', import.meta.url), 'utf8');
 assert(dockerfile.includes('npm ci') && dockerfile.includes('npm run build'), 'Dockerfile должен собирать приложение');
 assert(scenarios.length === 25, `Ожидалось 25 сценариев, получено ${scenarios.length}`);
