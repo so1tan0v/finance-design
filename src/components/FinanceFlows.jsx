@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AccountTile, DateField, DonutChart, Icon, MobileHero, Progress, TrendChart, chartPalette, screenHref } from './ui.jsx';
+import { AccountTile, DateCalendar, DateField, Icon, MobileHero, Progress, TrendChart, chartPalette, dottedDate, formatIsoDate, screenHref } from './ui.jsx';
 
 const INITIAL = ['USD', 'EUR', 'GEL', 'RUB', 'KRW', 'VND', 'MYR', 'AMD', 'TRY', 'KZT', 'UAH', 'PLN', 'THB', 'CNY'];
 const SYMBOL = { USD: '$', EUR: '€', GEL: '₾', RUB: '₽', GBP: '£', VND: '₫', KRW: '₩', MYR: 'RM', AMD: '֏', TRY: '₺', KZT: '₸', UAH: '₴', PLN: 'zł', THB: '฿', CNY: '¥' };
@@ -72,7 +72,7 @@ export function readPayers() {
   try { return JSON.parse(localStorage.getItem(payersKey) || '[]').filter(value => typeof value === 'string'); }
   catch { return []; }
 }
-function readSharedDebts() {
+export function readSharedDebts() {
   try { const rows = JSON.parse(localStorage.getItem(sharedDebtsKey) || '[]'); return Array.isArray(rows) ? rows : []; }
   catch { return []; }
 }
@@ -85,7 +85,11 @@ function saveDebtRepayment(item) {
 }
 function saveSharedExpenseDebts(shares, currency, date, note) {
   const added = shares.filter(item => item.name !== 'Я' && item.name.trim() && (numeric(item.amount) || 0) > 0)
-    .map((item, index) => ({ id: `${Date.now()}-${index}`, person: item.name, amount: numeric(item.amount), currency, date, note: note || 'Доля общего расхода' }));
+    .map((item, index) => ({ id: `${Date.now()}-${index}`, person: item.name, amount: numeric(item.amount), currency, date: dottedDate(date), note: note || 'Доля общего расхода' }));
+  addSharedDebts(added);
+}
+export function addSharedDebts(rows) {
+  const added = (rows || []).filter(item => item?.person && item.person !== 'Я' && Number(item.amount) > 0);
   if (!added.length) return;
   try { localStorage.setItem(sharedDebtsKey, JSON.stringify([...readSharedDebts(), ...added])); } catch { /* Preview remains usable. */ }
 }
@@ -144,6 +148,7 @@ function evaluate(expression, decimals = 2) {
   return Number.isFinite(result) && result >= 0 ? Math.round(result * factor) / factor : null;
 }
 export function Calculator({ value, onApply, onClose, decimals = 2 }) {
+  const field = useRef(null);
   const [expression, setExpression] = useState(value || '0');
   const [pasteError, setPasteError] = useState('');
   const result = evaluate(expression, decimals);
@@ -164,11 +169,17 @@ export function Calculator({ value, onApply, onClose, decimals = 2 }) {
     else if (key === ',') setExpression(old => /[.,]/.test(old.split(/[+−×÷]/).at(-1)) ? old : old + ',');
     else setExpression(old => old === '0' && (key === '00' || key === '000') ? '0' : old === '0' ? key : old + key);
   };
+  useEffect(() => { field.current?.focus(); }, []);
   useEffect(() => {
     const onKey = event => {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       const key = event.key;
+      const typing = event.target?.classList?.contains('calc-expression');
       if (key === 'Escape') { event.preventDefault(); onClose(); return; }
+      if (typing) {
+        if (key === 'Enter') { event.preventDefault(); if (result !== null) onApply(String(result)); }
+        return;
+      }
       if (key === 'Enter' || key === '=') { event.preventDefault(); if (key === '=' && result !== null) setExpression(String(result)); else if (result !== null) onApply(String(result)); return; }
       if (key === 'Backspace') { event.preventDefault(); press('⌫'); return; }
       if (key === 'Delete') { event.preventDefault(); press('C'); return; }
@@ -180,7 +191,7 @@ export function Calculator({ value, onApply, onClose, decimals = 2 }) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
-  return <div className="flow-overlay" role="dialog" aria-label="Калькулятор суммы"><div className="flow-sheet calc-sheet"><div className="sheet-head"><strong>Калькулятор суммы</strong><button type="button" onClick={onClose} aria-label="Закрыть">×</button></div><div className="calc-display"><span>{expression}</span><strong>{result === null ? 'Проверьте выражение' : `= ${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: decimals }).format(result)}`}</strong></div><button type="button" className="calc-paste" onClick={paste}><Icon name="paste" size={17} /> Вставить из буфера</button>{pasteError && <p className="calc-error" role="alert">{pasteError}</p>}<div className="calc-grid">{['C','⌫','00','÷','7','8','9','×','4','5','6','−','1','2','3','+','000','0',',','='].map(key => <button type="button" key={key} onClick={() => press(key)} className={['÷','×','−','+','='].includes(key) ? 'operator' : ''}>{key}</button>)}</div><button type="button" className="flow-primary calc-apply" disabled={result === null} onClick={() => onApply(String(result))}>Применить</button></div></div>;
+  return <div className="flow-overlay" role="dialog" aria-label="Калькулятор суммы"><div className="flow-sheet calc-sheet"><div className="sheet-head"><strong>Калькулятор суммы</strong><button type="button" onClick={onClose} aria-label="Закрыть">×</button></div><div className="calc-display"><input ref={field} className="calc-expression" inputMode="decimal" aria-label="Выражение" value={expression === '0' ? '' : expression} placeholder="0" onChange={event => { const clean = event.target.value.replace(/\./g, ',').replace(/-/g, '−').replace(/\*/g, '×').replace(/\//g, '÷').replace(/[^0-9,+−×÷]/g, ''); setExpression(clean || '0'); }} /><strong>{result === null ? 'Проверьте выражение' : `= ${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: decimals }).format(result)}`}</strong></div><button type="button" className="calc-paste" onClick={paste}><Icon name="paste" size={17} /> Вставить из буфера</button>{pasteError && <p className="calc-error" role="alert">{pasteError}</p>}<div className="calc-grid">{['C','⌫','00','÷','7','8','9','×','4','5','6','−','1','2','3','+','000','0',',','='].map(key => <button type="button" key={key} onMouseDown={event => event.preventDefault()} onClick={() => press(key)} className={['÷','×','−','+','='].includes(key) ? 'operator' : ''}>{key}</button>)}</div><button type="button" className="flow-primary calc-apply" disabled={result === null} onClick={() => onApply(String(result))}>Применить</button></div></div>;
 }
 export function CurrencyPicker({ settings, onSelect, onClose, onEdit, onAdd }) {
   const timer = useRef(null), longPressed = useRef(false);
@@ -234,16 +245,24 @@ export function PayerPicker({ selected, onSelect, onClose, onManage, excludeSelf
 const tagCatalogKey = 'finance-design-tags';
 const operationTagsKey = 'finance-design-operation-tags';
 const createdOperationsKey = 'finance-design-created-operations';
-const defaultTags = ['Дом', 'Работа', 'Командировка', 'Семья'];
-export function readTagCatalog() {
+const defaultTagRecords = [{ name: 'Дом', color: '#225C46' }, { name: 'Работа', color: '#C56A1A' }, { name: 'Командировка', color: '#1C6E86' }, { name: 'Семья', color: '#AD3D38' }];
+export function readTagRecords() {
   try {
     const saved = JSON.parse(localStorage.getItem(tagCatalogKey));
-    if (Array.isArray(saved)) return [...new Set([...defaultTags, ...saved.filter(item => typeof item === 'string' && item.trim())])];
+    if (Array.isArray(saved)) return saved.map(item => typeof item === 'string' ? { name: item.trim(), color: '#225C46' } : { name: String(item?.name || '').trim(), color: item?.color || '#225C46' }).filter(item => item.name);
   } catch { /* Preview remains usable. */ }
-  return defaultTags;
+  return defaultTagRecords;
+}
+export function writeTagRecords(records) {
+  try { localStorage.setItem(tagCatalogKey, JSON.stringify(records)); } catch { /* Preview remains usable. */ }
+  window.dispatchEvent(new Event(tagCatalogKey));
+}
+export function readTagCatalog() {
+  return readTagRecords().map(item => item.name);
 }
 function saveTagCatalog(tags) {
-  try { localStorage.setItem(tagCatalogKey, JSON.stringify(tags)); } catch { /* Preview remains usable. */ }
+  const colors = Object.fromEntries(readTagRecords().map(item => [item.name, item.color]));
+  writeTagRecords(tags.map(name => ({ name, color: colors[name] || '#225C46' })));
 }
 export function readOperationTags() {
   try {
@@ -262,8 +281,13 @@ export function readCreatedOperations() {
     return Array.isArray(saved) ? saved : [];
   } catch { return []; }
 }
+function currentBook() {
+  try { return JSON.parse(localStorage.getItem('finance-design-books') || 'null')?.active || 'personal'; }
+  catch { return 'personal'; }
+}
 export function rememberOperation(operation) {
-  try { localStorage.setItem(createdOperationsKey, JSON.stringify([operation, ...readCreatedOperations()].slice(0, 20))); } catch { /* Preview remains usable. */ }
+  const stamped = { ...operation, book: operation.book || currentBook() };
+  try { localStorage.setItem(createdOperationsKey, JSON.stringify([stamped, ...readCreatedOperations()].slice(0, 20))); } catch { /* Preview remains usable. */ }
 }
 export function TagPicker({ selected = [], onApply, onClose }) {
   const [catalog, setCatalog] = useState(readTagCatalog);
@@ -281,7 +305,7 @@ export function TagPicker({ selected = [], onApply, onClose }) {
     saveTagCatalog(next);
   };
   const shown = catalog.filter(name => name.toLowerCase().includes(query.toLowerCase()));
-  return <div className="flow-overlay" role="dialog" aria-label="Выбрать теги"><div className="flow-sheet"><div className="sheet-head"><strong>Теги операции</strong><button type="button" onClick={onClose} aria-label="Закрыть">×</button></div><p className="flow-caption">Отметьте одну или несколько меток. Тег не меняет сумму, счёт и курс.</p><SearchInput value={query} onChange={setQuery} placeholder="Найти тег" /><div className="account-picker-list">{shown.map(name => <button type="button" key={name} className={`payer-picker-row ${draft.includes(name) ? 'selected' : ''}`} aria-pressed={draft.includes(name)} onClick={() => toggle(name)}><span className="account-picker-icon"><Icon name="tag" size={18} /></span><span>{name}</span><span className="payer-picker-mark">{draft.includes(name) ? '✓' : '○'}</span></button>)}{!shown.length && <p className="search-empty">Такого тега нет. Добавьте его ниже.</p>}</div><label className="flow-input payer-custom">Новый тег<input value={custom} maxLength={40} onChange={event => setCustom(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); add(); } }} placeholder="Например, Отпуск" /></label><button type="button" className="flow-secondary payer-add" disabled={!custom.trim()} onClick={add}>Добавить и выбрать</button><button type="button" className="flow-link picker-manage" onClick={() => setDraft([])}>Без тега</button><button type="button" className="flow-primary payer-add" onClick={() => onApply(draft)}>Готово{draft.length ? ` · ${draft.join(', ')}` : ''}</button></div></div>;
+  return <div className="flow-overlay" role="dialog" aria-label="Выбрать теги"><div className="flow-sheet"><div className="sheet-head"><strong>Теги операции</strong><button type="button" onClick={onClose} aria-label="Закрыть">×</button></div><p className="flow-caption">Отметьте одну или несколько меток. Тег не меняет сумму, счёт и курс.</p><SearchInput value={query} onChange={setQuery} placeholder="Найти тег" /><div className="account-picker-list">{shown.map(name => { const color = readTagRecords().find(item => item.name === name)?.color || '#225C46'; return <button type="button" key={name} className={`payer-picker-row ${draft.includes(name) ? 'selected' : ''}`} aria-pressed={draft.includes(name)} onClick={() => toggle(name)}><span className="tag-dot" style={{ background: color }} /><span>{name}</span><span className="payer-picker-mark">{draft.includes(name) ? '✓' : '○'}</span></button>; })}{!shown.length && <p className="search-empty">Такого тега нет. Добавьте его ниже.</p>}</div><label className="flow-input payer-custom">Новый тег<input value={custom} maxLength={40} onChange={event => setCustom(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); add(); } }} placeholder="Например, Отпуск" /></label><button type="button" className="flow-secondary payer-add" disabled={!custom.trim()} onClick={add}>Добавить и выбрать</button><button type="button" className="flow-link picker-manage" onClick={() => setDraft([])}>Без тега</button><button type="button" className="flow-primary payer-add" onClick={() => onApply(draft)}>Готово{draft.length ? ` · ${draft.join(', ')}` : ''}</button></div></div>;
 }
 export function PayerMultiPicker({ selected = [], onApply, onClose }) {
   const [saved,setSaved]=useState(readPayers), [draft,setDraft]=useState(selected), [query,setQuery]=useState(''), [custom,setCustom]=useState('');
@@ -434,7 +458,7 @@ export function EntryFlow({ initialKind = 'Расход', href = screenHref }) {
   {kind === 'Расход' && <button type="button" className={`split-toggle ${splitEnabled ? 'on' : ''}`} aria-pressed={splitEnabled} onClick={() => setSplitEnabled(value => !value)}><span className="split-toggle-mark">{splitEnabled ? '✓' : ''}</span><span><strong>Разделить между людьми</strong><small>{splitEnabled ? 'Доли из справочника плательщиков' : 'Вся сумма остаётся на вас'}</small></span></button>}
   {splitEnabled && kind === 'Расход' && <div className="split-card"><div className="split-card-head"><strong>Доли</strong><button type="button" onClick={() => setModal({ type: 'payer-multi' })}>Люди</button></div>{shares.map((item, index) => <div className="split-person" key={`${item.name}-${index}`}><span className="split-avatar">{item.name.slice(0, 1)}</span><span>{item.name}</span><button type="button" className="share-amount-button" onClick={() => setModal({ type: 'share-calc', index })}>{money(numeric(item.amount) || 0, currency)}</button></div>)}<div className="split-meter" aria-hidden="true"><span style={{ width: `${Math.max(0, Math.min(100, amountNumber ? shareTotal / amountNumber * 100 : 0))}%` }} /></div><div className="share-entry-total"><span>Собрано</span><strong>{money(shareTotal, currency)} из {money(amountNumber || 0, currency)}</strong></div>{!validShares && <small className="share-entry-warning" role="alert">{shareCents > amountCents ? `Превышение: ${money((shareCents - amountCents) / 100, currency)}` : `Осталось ${money((amountCents - shareCents) / 100, currency)}`}. Сумма долей должна совпасть с покупкой, доля «Я» обязательна.</small>}</div>}
   {kind !== 'Перевод' && <div className="entry-flags"><label><input type="checkbox" checked={includeTotal} onChange={event => setIncludeTotal(event.target.checked)} /> В общий итог</label><label><input type="checkbox" checked={includeBudget} onChange={event => setIncludeBudget(event.target.checked)} /> В бюджет</label></div>}
-  <div className="entry-foot"><span>Остаток счёта обновится после сохранения</span><button type="button" className="flow-primary" disabled={!canPreview} onClick={() => { if (kind === 'Расход' && splitEnabled) saveSharedExpenseDebts(shares, currency, date, note); const [year, month, day] = date.split('-'); const months = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря']; rememberOperation({ id: `op-new-${Date.now()}`, day: `${Number(day)} ${months[Number(month) - 1]}`, date: `${day}.${month}.${year}`, title: kind === 'Перевод' ? 'Перевод' : (category.split(' · ').at(-1) || category), detail: kind === 'Перевод' ? `${account} → ${destination}` : `${note || 'Без заметки'} · ${account}`, amount: `${kind === 'Доход' ? '+' : kind === 'Перевод' ? '' : '−'}${new Intl.NumberFormat('ru-RU').format(amountNumber)} ${SYMBOL[currency] || currency}`, tone: kind === 'Доход' ? 'positive' : kind === 'Перевод' ? '' : 'negative', kind: kind === 'Перевод' ? 'transfer' : kind === 'Доход' ? 'briefcase' : categoryIcon, group: kind, account, category: kind === 'Перевод' ? '' : category.split(' · ')[0], tags, period: 'Октябрь 2026' }); window.location.hash = href('base-journal'); }}>Сохранить</button></div>
+  <div className="entry-foot"><span>Остаток счёта обновится после сохранения</span><button type="button" className="flow-primary" disabled={!canPreview} onClick={() => { if (kind === 'Расход' && splitEnabled) saveSharedExpenseDebts(shares, currency, date, note); const [year, month, day] = date.split('-'); const months = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря']; rememberOperation({ id: `op-new-${Date.now()}`, day: `${Number(day)} ${months[Number(month) - 1]}`, date: dottedDate(date), title: kind === 'Перевод' ? 'Перевод' : (category.split(' · ').at(-1) || category), detail: kind === 'Перевод' ? `${account} → ${destination}` : `${note || 'Без заметки'} · ${account}`, amount: `${kind === 'Доход' ? '+' : kind === 'Перевод' ? '' : '−'}${new Intl.NumberFormat('ru-RU').format(amountNumber)} ${SYMBOL[currency] || currency}`, tone: kind === 'Доход' ? 'positive' : kind === 'Перевод' ? '' : 'negative', kind: kind === 'Перевод' ? 'transfer' : kind === 'Доход' ? 'briefcase' : categoryIcon, group: kind, account, category: kind === 'Перевод' ? '' : category.split(' · ')[0], tags, period: 'Октябрь 2026' }); window.location.hash = href('base-journal'); }}>Сохранить</button></div>
   {modal?.type === 'calc' ? <Calculator value={amount} onApply={value => { setAmount(value); setModal(null); }} onClose={() => setModal(null)} /> : modal?.type === 'share-calc' ? <Calculator value={shares[modal.index]?.amount || '0'} onApply={value => { setShares(items => items.map((item, index) => index === modal.index ? { ...item, amount: value } : item)); setModal(null); }} onClose={() => setModal(null)} /> : <CurrencyModals modal={modal} setModal={setModal} settings={settings} update={update} onCurrency={code => { setCurrency(code); if (activeMulti && pockets.includes(code)) setFromPocket(code); }} />}
   {modal?.type === 'account' && <AccountPicker first={first} multi={multi} role={modal.role} exclude={modal.role === 'destination' ? account : undefined} onSelect={item => selectAccount(item, modal.role)} onClose={() => setModal(null)} onManage={() => setModal({ type: 'directory', directory: 'account', returnTo: modal })} />}
   {modal?.type === 'pocket' && <PocketPicker multi={activeMulti || multi} currency={currency} selected={fromPocket} onSelect={code => { setFromPocket(code); setModal(null); }} onClose={() => setModal(null)} />}
@@ -488,16 +512,288 @@ export function PocketsFlow() {
   const currencyWord = count % 10 === 1 && count % 100 !== 11 ? 'валюта' : count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 10 || count % 100 >= 20) ? 'валюты' : 'валют';
   return <><div className="mobile-topline small"><a className="circle-button" href={screenHref('base-accounts')} aria-label="Назад"><Icon name="back" /></a><h2>{account.name}</h2><span className="topline-spacer" /></div><MobileHero label="Остаток по учёту" amount={format(total)} currency={currencySymbol(settings.base)} meta={`${count} ${currencyWord} · в ${currencySymbol(settings.base)}`} /><div className="mobile-tabs"><a href={screenHref('base-expense')}>− Расход</a><a href={screenHref('base-expense')}>+ Доход</a><a href={screenHref('base-transfer')}>Перевод</a></div><div className="mobile-section-heading"><h3>Валюты счёта</h3></div>{pockets.map(item => <AccountTile key={item.code} mark={currencySymbol(item.code)} title={item.code} subtitle={item.code === settings.base ? 'Базовая валюта' : Number.isFinite(item.base) ? `≈ ${format(item.base)} ${currencySymbol(settings.base)}` : 'Курс не задан'} amount={`${format(item.amount)} ${currencySymbol(item.code)}`} />)}<a className="flow-secondary" href={screenHref('createaccount')}>Настроить валюты счёта</a></>;
 }
-const CATEGORY_DATA = { Расход: [['Продукты', 22500, chartPalette[1].hex],['Жильё', 15000, chartPalette[0].hex],['Прочее', 7500, chartPalette[5].hex]], Доход: [['Зарплата', 70000, chartPalette[4].hex],['Подработка', 20000, chartPalette[2].hex]] };
+function formatRange(from, to) {
+  if (!from) return 'Период';
+  if (!to || from === to) return formatIsoDate(from);
+  const start = from < to ? from : to;
+  const end = from < to ? to : from;
+  return `${formatIsoDate(start)} – ${formatIsoDate(end)}`;
+}
+const DEMO_REPORT_OPS = [
+  { date: '2026-10-13', account: 'Наличные', amount: -1240, group: 'Расход', category: 'Продукты' },
+  { date: '2026-10-13', account: 'Наличные', amount: 3000, group: 'Перевод', category: 'Перевод' },
+  { date: '2026-10-13', account: 'Наличные', amount: 200, group: 'Долг', category: 'Долг' },
+  { date: '2026-10-12', account: 'Банковский счёт', amount: 70000, group: 'Доход', category: 'Зарплата' },
+  { date: '2026-10-12', account: 'Наличные', amount: -450, group: 'Расход', category: 'Кафе' },
+  { date: '2026-10-11', account: 'Наличные', amount: -320, group: 'Расход', category: 'Такси' },
+  { date: '2026-10-11', account: 'Банковский счёт', amount: 5000, group: 'Перевод', category: 'Перевод' },
+  { date: '2026-10-10', account: 'Банковский счёт', amount: -30000, group: 'Расход', category: 'Аренда' },
+  { date: '2026-10-10', account: 'Наличные', amount: -1500, group: 'Долг', category: 'Долг' },
+  { date: '2026-10-09', account: 'Наличные', amount: -500, group: 'Расход', category: 'Продукты' },
+  { date: '2026-10-09', account: 'Наличные', amount: 2000, group: 'Доход', category: 'Подработка' },
+  { date: '2026-10-08', account: 'Наличные', amount: -800, group: 'Долг', category: 'Долг' },
+  { date: '2026-10-08', account: 'Банковский счёт', amount: -1850, group: 'Расход', category: 'Коммунальные' }
+];
+function reportIso(date) {
+  const match = String(date || '').match(/(\d{2})\.(\d{2})\.(\d{4})/);
+  if (match) return `${match[3]}-${match[2]}-${match[1]}`;
+  return /^\d{4}-\d{2}-\d{2}/.test(String(date)) ? String(date).slice(0, 10) : '';
+}
+function reportAmount(value) {
+  if (typeof value === 'number') return value;
+  const raw = String(value || '');
+  const negative = /−|-/.test(raw);
+  const number = Number(raw.replace(/[^\d,.]/g, '').replace(',', '.')) || 0;
+  return negative ? -number : number;
+}
+function currencyFromText(raw) {
+  const text = String(raw || '');
+  const found = Object.entries(SYMBOL).find(([, symbol]) => symbol && text.includes(symbol));
+  return found ? found[0] : 'RUB';
+}
+function reportOperations() {
+  const created = readCreatedOperations().map(item => ({
+    date: reportIso(item.date),
+    account: item.account || 'Наличные',
+    amount: reportAmount(item.amount),
+    currency: item.currency || currencyFromText(item.amount),
+    group: item.group || 'Расход',
+    category: item.category || item.group || 'Прочее',
+    title: item.title || item.category || 'Операция'
+  })).filter(item => item.date);
+  return [...DEMO_REPORT_OPS.map(item => ({ ...item, currency: 'RUB', title: item.category })), ...created];
+}
+function isoFromParts(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+function parseIso(iso) {
+  const [year, month, day] = String(iso || '').split('-').map(Number);
+  return new Date(year || 2026, (month || 1) - 1, day || 1);
+}
+function shiftIso(iso, days) {
+  const date = parseIso(iso);
+  date.setDate(date.getDate() + days);
+  return isoFromParts(date);
+}
+function dayCount(from, to) {
+  return Math.round((parseIso(to) - parseIso(from)) / 86400000) + 1;
+}
+const MONTHS_SHORT = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+function periodFor(scale, anchor) {
+  const date = parseIso(anchor);
+  if (scale === 'week') {
+    const monday = (date.getDay() + 6) % 7;
+    const start = new Date(date);
+    start.setDate(date.getDate() - monday);
+    return { from: isoFromParts(start), to: shiftIso(isoFromParts(start), 6) };
+  }
+  if (scale === 'year') return { from: `${date.getFullYear()}-01-01`, to: `${date.getFullYear()}-12-31` };
+  const start = new Date(date.getFullYear(), date.getMonth(), 1);
+  const end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+  return { from: isoFromParts(start), to: isoFromParts(end) };
+}
+function dayBuckets(from, to) {
+  const buckets = [];
+  let cursor = parseIso(from);
+  const end = parseIso(to);
+  while (cursor <= end && buckets.length < 16) {
+    const iso = isoFromParts(cursor);
+    buckets.push({ from: iso, to: iso, label: `${String(cursor.getDate()).padStart(2, '0')}.${String(cursor.getMonth() + 1).padStart(2, '0')}` });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return buckets;
+}
+function weekBuckets(from, to) {
+  const buckets = [];
+  let cursor = parseIso(from);
+  const end = parseIso(to);
+  while (cursor <= end && buckets.length < 12) {
+    const startIso = isoFromParts(cursor);
+    const monday = (cursor.getDay() + 6) % 7;
+    const weekEnd = new Date(cursor);
+    weekEnd.setDate(cursor.getDate() + (6 - monday));
+    if (weekEnd > end) weekEnd.setTime(end.getTime());
+    const startDay = cursor.getDate();
+    const endDay = weekEnd.getDate();
+    buckets.push({ from: startIso, to: isoFromParts(weekEnd), label: startDay === endDay ? String(startDay) : `${startDay}–${endDay}` });
+    cursor = new Date(weekEnd);
+    cursor.setDate(weekEnd.getDate() + 1);
+  }
+  return buckets;
+}
+function monthBuckets(from, to) {
+  const buckets = [];
+  const end = parseIso(to);
+  let cursor = parseIso(from);
+  cursor.setDate(1);
+  while (cursor <= end && buckets.length < 18) {
+    const monthEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0);
+    const start = new Date(Math.max(cursor.getTime(), parseIso(from).getTime()));
+    const stop = monthEnd < end ? monthEnd : end;
+    buckets.push({ from: isoFromParts(start), to: isoFromParts(stop), label: MONTHS_SHORT[cursor.getMonth()] });
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+  }
+  return buckets;
+}
+function bucketsFor(scale, from, to) {
+  const days = dayCount(from, to);
+  if (scale === 'week' || days <= 14) return dayBuckets(from, to);
+  if (scale === 'year' || days > 62) return monthBuckets(from, to);
+  return weekBuckets(from, to);
+}
+function categoryIcon(name) {
+  for (const groups of Object.values(CATEGORY_TREE)) {
+    for (const parent of groups) {
+      if (parent.name === name) return parent.icon;
+      const child = parent.children.find(([childName]) => childName === name);
+      if (child) return child[1];
+    }
+  }
+  return 'star';
+}
+function axisMoney(value) {
+  const abs = Math.abs(Math.round(value));
+  if (abs >= 1000000) return `${new Intl.NumberFormat('ru-RU').format(Math.round(abs / 1000))} тыс`;
+  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(abs);
+}
+function niceStep(rough) {
+  if (!(rough > 0)) return 1;
+  const pow = 10 ** Math.floor(Math.log10(rough));
+  const n = rough / pow;
+  const nice = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
+  return nice * pow;
+}
+function niceCeil(value) {
+  if (!(value > 0)) return 1;
+  const step = niceStep(value / 2);
+  return Math.max(step, Math.ceil((value * 1.12) / step) * step);
+}
+function SpendBars({ buckets, activeKey, onSelect }) {
+  const width = 360, height = 196, left = 6, right = 76, top = 14, bottom = 28;
+  const plotW = width - left - right, plotH = height - top - bottom;
+  const peak = Math.max(0, ...buckets.map(item => item.value));
+  const topValue = niceCeil(peak);
+  const active = buckets.find(item => item.key === activeKey) || buckets[0];
+  const yOf = value => top + plotH - (value / topValue) * plotH;
+  const guide = active && active.value > 0 ? active.value : null;
+  const showTop = guide == null || Math.abs(yOf(topValue) - yOf(guide)) > 18;
+  const slot = plotW / Math.max(1, buckets.length);
+  const barW = Math.max(8, Math.min(28, slot * 0.62));
+  return <svg className="analytics-bars" viewBox={`0 0 ${width} ${height}`} role="group" aria-label="Сумма по периодам. Ось справа — сумма, выбранный столбец подписан своим значением.">
+    <line className="analytics-grid" x1={left} x2={width - right} y1={yOf(0)} y2={yOf(0)} />
+    <text x={width - right + 8} y={yOf(0) + 4} textAnchor="start">0</text>
+    {showTop && <g><line className="analytics-grid" x1={left} x2={width - right} y1={yOf(topValue)} y2={yOf(topValue)} /><text x={width - right + 8} y={yOf(topValue) + 4} textAnchor="start">{axisMoney(topValue)}</text></g>}
+    {guide != null && <g><line className="analytics-guide" x1={left} x2={width - right} y1={yOf(guide)} y2={yOf(guide)} /><text className="analytics-axis-value" x={width - right + 8} y={yOf(guide) + 4} textAnchor="start">{axisMoney(guide)}</text></g>}
+    {buckets.map((item, index) => {
+      const x = left + index * slot + (slot - barW) / 2;
+      const barH = item.value > 0 ? Math.max(4, (item.value / topValue) * plotH) : 0;
+      const y = top + plotH - barH;
+      const radius = Math.min(6, barW / 2, barH / 2);
+      const path = barH <= 0 ? '' : `M ${x} ${y + barH} L ${x} ${y + radius} Q ${x} ${y} ${x + radius} ${y} L ${x + barW - radius} ${y} Q ${x + barW} ${y} ${x + barW} ${y + radius} L ${x + barW} ${y + barH} Z`;
+      const chosen = item.key === active?.key;
+      return <g key={item.key} className={chosen ? 'is-selected' : ''} role="button" tabIndex={0} aria-pressed={chosen} aria-label={`${item.label}: ${axisMoney(item.value)}`} onClick={() => onSelect(item.key)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(item.key); } }}>
+        <rect x={left + index * slot} y={top} width={slot} height={plotH} fill="transparent" />
+        {path && <path d={path} />}
+        <text x={left + index * slot + slot / 2} y={height - 8} textAnchor="middle">{item.label}</text>
+      </g>;
+    })}
+  </svg>;
+}
+function AnalyticsDonut({ segments, selected }) {
+  const total = segments.reduce((sum, item) => sum + item.value, 0) || 1;
+  let cursor = 0;
+  const stops = segments.map(item => {
+    const start = cursor;
+    cursor += item.value / total;
+    return { ...item, start, end: cursor };
+  });
+  const gradient = stops.map(item => `${selected && selected !== item.label ? `${item.color}66` : item.color} ${item.start * 100}% ${item.end * 100}%`).join(',');
+  return <div className="analytics-donut-wrap">{segments.length ? <div className="analytics-donut" style={{ background: `conic-gradient(${gradient})` }}><div className="analytics-donut-hole" /></div> : <p className="search-empty">В этом периоде нет таких операций.</p>}{stops.filter(item => item.end - item.start >= 0.03).map((item, index, all) => {
+    const mid = (item.start + item.end) / 2 * Math.PI * 2 - Math.PI / 2;
+    const previous = index > 0 ? (all[index - 1].start + all[index - 1].end) / 2 * Math.PI * 2 - Math.PI / 2 : -99;
+    const radius = Math.abs(mid - previous) < 0.7 ? 47 : 36;
+    return <span key={item.label} className="analytics-donut-label" style={{ left: `${50 + Math.cos(mid) * radius}%`, top: `${50 + Math.sin(mid) * radius}%` }}>{Math.round((item.end - item.start) * 100)}%</span>;
+  })}</div>;
+}
 export function ReportsFlow({ href = screenHref } = {}) {
-  const [kind, setKind] = useState('Расход'), [period, setPeriod] = useState('Октябрь 2026'), [account, setAccount] = useState('Все счета'), [selected, setSelected] = useState(null);
+  const settings = readSettings();
+  const today = isoFromParts(new Date());
+  const [kind, setKind] = useState('Расход');
+  const [account, setAccount] = useState('Все счета');
+  const [currency, setCurrency] = useState(settings.base || 'RUB');
+  const [selected, setSelected] = useState(null);
+  const [scale, setScale] = useState('month');
+  const [view, setView] = useState('bars');
+  const [barKey, setBarKey] = useState(null);
+  const [range, setRange] = useState({ from: '2026-10-01', to: '2026-10-31' });
+  const [draft, setDraft] = useState({ from: '2026-10-01', to: '2026-10-31' });
   const [modal, setModal] = useState(null);
-  const factor = (period === 'Октябрь 2026' ? 1 : 0.7) * ({ 'Все счета': 1, 'Наличные': 0.4, TBC: 0.6 }[account] || 1);
-  const flow = [42350, 43850, 12350, 12030, 81580, 80540];
-  const data = (CATEGORY_DATA[kind] || []).map(([label, value, color]) => [label, Math.round(value * factor), color]);
-  const total = data.reduce((sum, item) => sum + item[1], 0) || 1;
-  const income = Math.round(90000 * factor), expense = Math.round(45000 * factor);
-  return <><div className="entry-head"><h2>Отчёты</h2><small>Движение средств · {period}</small></div><div className="report-filters"><button type="button" onClick={() => setModal({ type: 'period' })}>{period}</button><button type="button" onClick={() => setModal({ type: 'account' })}>{account}</button></div><div className="report-summary"><div><span>Доходы</span><strong>+{money(income, 'RUB')}</strong></div><div><span>Расходы</span><strong>−{money(expense, 'RUB')}</strong></div><div><span>Разница</span><strong>+{money(income - expense, 'RUB')}</strong></div></div><div className="entry-tabs" role="tablist" aria-label="Тип отчёта">{['Расход','Доход','Поток'].map(value => <button type="button" role="tab" aria-selected={kind === value} className={kind === value ? 'active' : ''} key={value} onClick={() => { setKind(value); setSelected(null); }}>{value}</button>)}</div><div className="report-stage">{kind === 'Поток' ? <TrendChart title="Общий баланс" points={flow.map(point => Math.round(point * factor))} labels={['8 окт','9','10','11','12','13']} valueLabel={`${flow[flow.length - 1] >= flow[0] ? 'Выше' : 'Ниже'}, чем 8 октября`} /> : <><DonutChart segments={data.map(([label, value, color]) => ({ label, value, color }))} centerLabel={kind === 'Расход' ? 'Расходы' : 'Доходы'} centerValue={money(total, 'RUB')} onSelect={setSelected} /><div className="flow-card compact report-values">{data.map(([label, value]) => <SelectField key={label} label={label} value={money(value, 'RUB')} detail="Открыть операции категории" onClick={() => setSelected(label)} />)}</div></>}</div>{selected && <div className="report-drill"><strong>{selected}</strong><span>Операции категории за {period.toLowerCase()}</span><a href={`${href('base-journal')}?${new URLSearchParams({ category: selected, period, account, kind }).toString()}`}>Открыть операции с этими фильтрами →</a><button type="button" onClick={() => setSelected(null)}>Закрыть</button></div>}<p className="flow-caption">Суммы отчёта показаны в ₽. Переводы между своими счетами не входят в доходы и расходы. Линия «Поток» — общий баланс по дням: зарплата поднимает его, крупные расходы опускают.</p>{modal?.type === 'account' && <AccountPicker first={getFirstAccount()} multi={getMultiAccount()} allowAll onSelect={item => { setAccount(item.name); setModal(null); }} onClose={() => setModal(null)} />}{modal?.type === 'period' && <div className="flow-overlay" role="dialog" aria-label="Период отчёта"><div className="flow-sheet"><div className="sheet-head"><strong>Период отчёта</strong><button type="button" onClick={() => setModal(null)} aria-label="Закрыть">×</button></div>{['Октябрь 2026','Сентябрь 2026'].map(value => <button type="button" className="payer-picker-row" key={value} onClick={() => { setPeriod(value); setModal(null); }}>{value}</button>)}</div></div>}</>;
+  const [currencyQuery, setCurrencyQuery] = useState('');
+  const from = range.from <= (range.to || range.from) ? range.from : range.to;
+  const to = range.from <= (range.to || range.from) ? (range.to || range.from) : range.from;
+  const period = formatRange(from, to);
+  const rates = { ...DEMO_USD, ...settings.rates };
+  const asCurrency = (amount, source) => {
+    const value = (source || 'RUB') === currency ? Math.abs(amount) : convert(Math.abs(amount), source || 'RUB', currency, rates);
+    return Number.isFinite(value) ? value : 0;
+  };
+  const ops = reportOperations();
+  const counts = item => item.group !== 'Перевод' && ((kind === 'Расход' && item.amount < 0) || (kind === 'Доход' && item.amount > 0));
+  const inSpan = (item, start, end) => item.date >= start && item.date <= end && (account === 'Все счета' || item.account === account) && counts(item);
+  const scoped = ops.filter(item => inSpan(item, from, to));
+  const total = scoped.reduce((sum, item) => sum + asCurrency(item.amount, item.currency), 0);
+  const span = dayCount(from, to);
+  const previousEnd = shiftIso(from, -1);
+  const previous = ops.filter(item => inSpan(item, shiftIso(previousEnd, -(span - 1)), previousEnd)).reduce((sum, item) => sum + asCurrency(item.amount, item.currency), 0);
+  const delta = total - previous;
+  const favorable = kind === 'Расход' ? delta < 0 : delta > 0;
+  const data = [...scoped.reduce((map, item) => map.set(item.category || 'Прочее', (map.get(item.category || 'Прочее') || 0) + asCurrency(item.amount, item.currency)), new Map()).entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, value], index) => ({ label, value, color: chartPalette[index % chartPalette.length].hex }));
+  const shown = selected ? scoped.filter(item => item.category === selected) : scoped;
+  const buckets = bucketsFor(scale, from, to).map(bucket => ({
+    ...bucket,
+    key: `${bucket.from}:${bucket.to}`,
+    value: shown.filter(item => item.date >= bucket.from && item.date <= bucket.to).reduce((sum, item) => sum + asCurrency(item.amount, item.currency), 0)
+  }));
+  const active = buckets.find(item => item.key === barKey) || [...buckets].sort((a, b) => b.value - a.value)[0] || null;
+  const listed = shown.filter(item => active && item.date >= active.from && item.date <= active.to);
+  const days = [...listed.reduce((map, item) => map.set(item.date, [...(map.get(item.date) || []), item]), new Map())].sort((a, b) => b[0].localeCompare(a[0]));
+  const applyScale = next => {
+    const anchor = today >= from && today <= to ? today : from;
+    const nextRange = periodFor(next, anchor);
+    setScale(next);
+    setRange(nextRange);
+    setDraft(nextRange);
+    setBarKey(null);
+    setSelected(null);
+  };
+  const currencyChoices = [settings.base, ...settings.currencies.filter(code => code !== settings.base)].filter((code, index, all) => code && all.indexOf(code) === index);
+  const currencyLabel = currency === settings.base ? `Базовая ${currencySymbol(currency)}` : `${currencySymbol(currency)} ${currency}`;
+  const journalHref = `${href('base-journal')}${href('base-journal').includes('?') ? '&' : '?'}${new URLSearchParams({ category: selected || '', account, kind, from: active?.from || from, to: active?.to || to }).toString()}`;
+  return <>
+    <div className="entry-head"><h2>Отчёты</h2><small>Движение средств · {period}</small></div>
+    <div className="analytics-filters">
+      <div className="filter-chip active analytics-period"><button type="button" onClick={() => { setDraft(range); setModal({ type: 'period' }); }}>{period}</button><button type="button" className="analytics-period-x" aria-label="Сбросить период" onClick={() => { const nextRange = periodFor('month', today); setScale('month'); setRange(nextRange); setDraft(nextRange); setBarKey(null); }}>×</button></div>
+      <button type="button" className="filter-chip" onClick={() => setModal({ type: 'account' })}>{account}<Icon name="chevron" size={14} /></button>
+      <button type="button" className="filter-chip" onClick={() => { setCurrencyQuery(''); setModal({ type: 'currency' }); }}>{currencyLabel}</button>
+    </div>
+    <div className="entry-tabs" role="tablist" aria-label="Тип отчёта">{['Расход', 'Доход'].map(value => <button type="button" role="tab" aria-selected={kind === value} className={kind === value ? 'active' : ''} key={value} onClick={() => { setKind(value); setSelected(null); setBarKey(null); }}>{value}</button>)}</div>
+    <div className="report-stage analytics-stage"><section className="report-panel analytics-card">
+      <div className="analytics-hero"><strong className="analytics-total">{money(total, currency)}</strong>{previous !== 0 && delta !== 0 && <span className={`analytics-delta ${favorable ? 'up' : 'down'}`}>{delta > 0 ? '↑' : '↓'} {money(Math.abs(delta), currency)}</span>}<small>{kind === 'Расход' ? 'Расходы' : 'Доходы'}</small></div>
+      {view === 'bars' ? <SpendBars buckets={buckets} activeKey={active?.key} onSelect={setBarKey} /> : <AnalyticsDonut segments={data} selected={selected} />}
+      <div className="analytics-toolbar">
+        <div className="entry-tabs" role="tablist" aria-label="Масштаб">{[['week', 'Неделя'], ['month', 'Месяц'], ['year', 'Год']].map(([id, label]) => <button type="button" role="tab" key={id} aria-selected={scale === id} className={scale === id ? 'active' : ''} onClick={() => applyScale(id)}>{label}</button>)}</div>
+        <div className="analytics-view" role="group" aria-label="Вид графика"><button type="button" className={view === 'donut' ? 'active' : ''} aria-pressed={view === 'donut'} aria-label="Кольцо" onClick={() => setView('donut')}><Icon name="target" size={18} /></button><button type="button" className={view === 'bars' ? 'active' : ''} aria-pressed={view === 'bars'} aria-label="Столбцы" onClick={() => setView('bars')}><Icon name="chart" size={18} /></button></div>
+      </div>
+      {!!data.length && <div className="analytics-pills">{data.map(item => <button type="button" key={item.label} className={`analytics-pill${selected === item.label ? ' active' : ''}`} aria-pressed={selected === item.label} onClick={() => { setSelected(selected === item.label ? null : item.label); setBarKey(null); }}><i style={{ background: item.color }}><Icon name={categoryIcon(item.label)} size={14} /></i><span>{item.label}</span><strong>{money(item.value, currency)}</strong></button>)}</div>}
+      <div className="analytics-ops">{days.length ? days.map(([date, rows]) => <section key={date}><div className="analytics-day"><strong>{formatIsoDate(date)}</strong><span>{kind === 'Расход' ? '−' : '+'}{money(rows.reduce((sum, item) => sum + asCurrency(item.amount, item.currency), 0), currency)}</span></div>{rows.map((item, index) => <div className="analytics-op" key={`${item.date}-${item.title}-${index}`}><i style={{ background: data.find(row => row.label === item.category)?.color || chartPalette[0].hex }}><Icon name={categoryIcon(item.category)} size={16} /></i><span><strong>{item.title}</strong><small>{item.category} · {item.account}</small></span><em>{kind === 'Расход' ? '−' : '+'}{money(asCurrency(item.amount, item.currency), currency)}</em></div>)}</section>) : <p className="search-empty">В выбранном столбце нет операций.</p>}<a href={journalHref}>Открыть в журнале →</a></div>
+    </section></div>
+    <p className="flow-caption">Суммы пересчитаны в {currency === settings.base ? 'базовую валюту' : currencySymbol(currency)}. Переводы между своими счетами в доходы и расходы не входят. Столбец можно выбрать: пунктир и число справа — сумма этого столбца.</p>
+    {modal?.type === 'account' && <AccountPicker first={getFirstAccount()} multi={getMultiAccount()} allowAll onSelect={item => { setAccount(item.name); setBarKey(null); setModal(null); }} onClose={() => setModal(null)} />}
+    {modal?.type === 'currency' && <div className="flow-overlay" role="dialog" aria-label="Валюта отчёта"><div className="flow-sheet"><div className="sheet-head"><strong>Валюта отчёта</strong><button type="button" onClick={() => setModal(null)} aria-label="Закрыть">×</button></div><SearchInput value={currencyQuery} onChange={setCurrencyQuery} placeholder="Найти валюту" /><div className="account-picker-list">{currencyChoices.filter(code => `${code} ${currencySymbol(code)} базовая`.toLowerCase().includes(currencyQuery.toLowerCase())).map(code => <button type="button" key={code} className="account-picker-row" onClick={() => { setCurrency(code); setModal(null); }}><span className="account-picker-icon">{currencySymbol(code)}</span><span className="account-picker-copy"><strong>{code}</strong><small>{code === settings.base ? 'Базовая валюта' : `1 ${code} ≈ ${money(convert(1, code, settings.base, rates) || 0, settings.base)}`}</small></span><span className="payer-picker-mark">{currency === code ? '✓' : '›'}</span></button>)}</div></div></div>}
+    {modal?.type === 'period' && <div className="flow-overlay" role="dialog" aria-label="Период отчёта"><div className="flow-sheet"><div className="sheet-head"><strong>Период отчёта</strong><button type="button" onClick={() => setModal(null)} aria-label="Закрыть">×</button></div><DateCalendar mode="range" from={draft.from} to={draft.to && draft.to !== draft.from ? draft.to : ''} onPick={iso => { if (!draft.from || (draft.to && draft.to !== draft.from)) { setDraft({ from: iso, to: iso }); return; } if (iso === draft.from) return; setDraft({ from: draft.from, to: iso }); }} onRangeChange={(start, end) => setDraft({ from: start || '', to: end || start || '' })} /><button type="button" className="flow-primary" disabled={!draft.from} onClick={() => { let start = draft.from; let end = draft.to || draft.from; if (start > end) [start, end] = [end, start]; setRange({ from: start, to: end }); setBarKey(null); setModal(null); }}>{draft.to && draft.to !== draft.from ? 'Показать период' : 'Показать день'}</button></div></div>}
+  </>;
 }
 function ProductTrend({ title, points, labels, valueLabel, tone = 'green' }) {
   const width = 320, height = 142, padX = 14, padY = 18;
@@ -540,7 +836,7 @@ export function DepositFlow({ screen }) {
   }
   if (screen?.id === 'deposit-payout') return <><div className="entry-head"><h2>График начислений</h2><small>{item.name}</small></div><div className="product-summary-grid"><div><small>Начислено</small><strong>{money(item.accrued,item.currency)}</strong></div><div><small>Следующее</small><strong>{money(item.payout,item.currency)}</strong></div></div><ProductTrend title="Проценты по месяцам" points={balance} labels={months} valueLabel={`${money(monthly,item.currency)} / мес`} /><ScheduleList rows={schedule.map(row=>({title:row.date,subtitle:`Накоплено ${money(row.cumulative,item.currency)}`,amount:money(row.amount,item.currency),tone:'positive'}))} /><p className="flow-caption">Расчёт по условиям вклада. Фактическое начисление подтвердите по выписке банка.</p><a className="flow-primary" href={`${screenHref(`deposit-detail?item=${selected}`)}`}>Карточка вклада</a></>;
   if (screen?.id === 'deposit-detail') return <><div className="entry-head"><h2>{item.name.split(' · ')[0]}</h2><small>{item.account}</small></div><div className="desktop-overview"><div><small>Начислено</small><strong>+{money(item.accrued,item.currency)}</strong></div><p>{String(item.rate).replace('.', ',')}% · следующая выплата {money(item.payout,item.currency)} · {item.due}</p></div><ProductTrend title="Баланс и начисления" points={balance} labels={months} valueLabel={item.end} /><div className="flow-card compact"><SelectField label="Связанный счёт" value={item.account} onClick={()=>{}} /><SelectField label="Тип начисления" value={item.type} onClick={()=>{}} /><SelectField label="Срок окончания" value={item.end} onClick={()=>{}} /></div><ScheduleList rows={schedule.slice(0,4).map(row=>({title:row.date,subtitle:`После выплаты ${money(item.current+row.amount,item.currency)}`,amount:`+${money(row.amount,item.currency)}`,tone:'positive'}))} /><a className="flow-secondary" href={`${screenHref(`deposit-payout?item=${selected}`)}`}>Полный график</a><a className="flow-secondary" href={screenHref('base-journal')}>Операции по счёту</a><p className="flow-caption">Плановые проценты показываются отдельно от денег на счёте и не включаются в остаток до фактической выплаты.</p></>;
-  return <><div className="entry-head"><h2>Вклады</h2><small>Ставки, начисления и ближайшие выплаты</small></div><div className="desktop-overview"><div><small>Начислено</small><strong><span>$145</span><span>₾86</span></strong></div><p>Валюты не складываются без курса. Начисления и выплаты показаны отдельно.</p></div>{DEPOSIT_DATA.map((deposit,index)=><a className="account-tile" href={`${screenHref(`${deposit.id}?item=${index}`)}`} key={deposit.name} onClick={()=>setSelected(index)}><span className={`account-tile-icon${index ? ' bank' : ''}`}><Icon name={index ? 'bank' : 'wallet'} /></span><span className="account-tile-copy"><strong>{deposit.name.split(' · ')[0]}</strong><small>{String(deposit.rate).replace('.', ',')}% · выплата {deposit.due}</small></span><strong className="account-tile-amount positive">+{money(deposit.accrued,deposit.currency)}</strong></a>)}<a className="flow-secondary" href={screenHref('deposit-new')}>Новый вклад</a><a className="flow-secondary" href={screenHref('deposit-payout')}>График выплат</a><a className="flow-secondary" href={screenHref('deposit-compare')}>Сравнение</a></>;
+  return <><div className="entry-head"><h2>Вклады</h2><small>Ставки, начисления и ближайшие выплаты</small></div><div className="desktop-overview"><div><small>Начислено</small><strong><span>$145</span><span>₾86</span></strong></div><p>Валюты не складываются без курса. Начисления и выплаты показаны отдельно.</p></div>{DEPOSIT_DATA.map((deposit,index)=><a className="account-tile" href={`${screenHref(`${deposit.id}?item=${index}`)}`} key={deposit.name} onClick={()=>setSelected(index)}><span className="account-tile-icon"><Icon name="deposit" /></span><span className="account-tile-copy"><strong>{deposit.name.split(' · ')[0]}</strong><small>{String(deposit.rate).replace('.', ',')}% · выплата {deposit.due}</small></span><strong className="account-tile-amount positive">+{money(deposit.accrued,deposit.currency)}</strong></a>)}<a className="flow-secondary" href={screenHref('deposit-new')}>Новый вклад</a><a className="flow-secondary" href={screenHref('deposit-payout')}>График выплат</a><a className="flow-secondary" href={screenHref('deposit-compare')}>Сравнение</a></>;
 }
 
 export function LoanFlow({ screen }) {
@@ -561,7 +857,7 @@ export function LoanFlow({ screen }) {
   if (screen?.id === 'loan-schedule') return <><div className="entry-head"><h2>График платежей</h2><small>{item.name}</small></div><div className="product-summary-grid"><div><small>Остаток долга</small><strong>{money(item.balance,item.currency)}</strong></div><div><small>Ежемесячно</small><strong>{money(item.payment,item.currency)}</strong></div></div><ProductTrend title="Как уменьшается основной долг" points={remaining} labels={['Сейчас','6 мес','1 год','2 года','3 года']} tone="red" valueLabel={`${item.rate}% годовых`} /><ScheduleList rows={schedule.map(row=>({title:row.date,subtitle:`Долг ${money(row.principal,item.currency)} · проценты ${money(row.interest,item.currency)}`,amount:money(row.payment,item.currency)}))} /><a className="flow-primary" href={`${screenHref(`loan-pay?item=${selected}`)}`}>Записать фактический платёж</a><p className="flow-caption">План графика сам по себе не списывает деньги. После платежа сверьте сумму по банковской выписке.</p></>;
   if (screen?.id === 'loan-pay' || screen?.id === 'loan-pay-preview') return <><div className="entry-head"><h2>{screen.id==='loan-pay'?'Записать платёж':'Проверка платежа'}</h2><small>{item.name}</small></div><div className="product-summary-grid"><div><small>Сумма списания</small><strong>{money(item.payment+extra,item.currency)}</strong></div><div><small>Остаток долга после</small><strong>{money(item.balance-item.principal-extra,item.currency)}</strong></div></div><div className="flow-card compact"><SelectField label="Счёт списания" value={paymentAccount} onClick={()=>setModal({type:'account'})} /><SelectField label="Основной долг" value={money(item.principal+extra,item.currency)} onClick={()=>setCalcField('extra')} /><SelectField label="Проценты · расход" value={money(item.interest,item.currency)} onClick={()=>{}} /><DateField label="Дата фактического платежа" value={paymentDate} onChange={setPaymentDate} /></div><p className="flow-caption">Счёт уменьшается на всю сумму платежа. Остаток кредита — только на погашенную часть основного долга. Проценты идут в расходы.</p>{modal?.type==='account'&&<AccountPicker first={first} multi={multi} onSelect={account=>{setPaymentAccount(account.name);if(account.multi)setModal({type:'pocket',account});else setModal(null);}} onClose={()=>setModal(null)} onManage={()=>setModal(null)} />}{modal?.type==='pocket'&&<PocketPicker multi={modal.account} currency={item.currency} selected={item.currency} onSelect={code=>{setPaymentAccount(`${modal.account.name} · ${currencySymbol(code)} карман`);setModal(null);}} onClose={()=>setModal(null)} />}{calcField==='extra'&&<Calculator value={String(item.principal+extra)} onApply={value=>{setExtra(Math.max(0,(numeric(value)||0)-item.principal));setCalcField(null);}} onClose={()=>setCalcField(null)} />}<a className="flow-primary" href={`${screenHref(`loan-detail?item=${selected}`)}`}>Сохранить платёж в журнале</a><a className="flow-secondary" href={`${screenHref(`loan-schedule?item=${selected}`)}`}>Вернуться к графику</a></>;
   if (screen?.id === 'loan-detail') return <><div className="entry-head"><h2>{item.name.split(' · ')[0]}</h2><small>{item.account}</small></div><div className="desktop-overview"><div><small>Остаток долга</small><strong>{money(item.balance,item.currency)}</strong></div><p>Платёж {money(item.payment,item.currency)} · {item.due}. Долг {money(item.principal,item.currency)}, проценты {money(item.interest,item.currency)}.</p></div><ProductTrend title="Остаток основного долга" points={remaining} labels={['Сейчас','6 мес','1 год','2 года','3 года']} tone="red" valueLabel={item.end} /><div className="flow-card compact"><SelectField label="Счёт платежа" value={item.account} onClick={()=>{}} /><SelectField label="Платёж по графику" value={`${money(item.principal,item.currency)} долг + ${money(item.interest,item.currency)} проценты`} onClick={()=>{}} /><SelectField label="Дата окончания" value={item.end} onClick={()=>{}} /></div><ScheduleList rows={schedule.slice(0,4).map(row=>({title:row.date,subtitle:`Долг ${money(row.principal,item.currency)} · проценты ${money(row.interest,item.currency)}`,amount:money(row.payment,item.currency)}))} /><a className="flow-primary" href={`${screenHref(`loan-pay?item=${selected}`)}`}>Записать платёж</a><a className="flow-secondary" href={`${screenHref(`loan-schedule?item=${selected}`)}`}>Весь график</a><p className="flow-caption">Платёж списывается со счёта, но кредит не является деньгами на счёте. В общий остаток он попадает как обязательство. Основной долг и проценты учитываются отдельно.</p></>;
-  return <><div className="entry-head"><h2>Кредиты</h2><small>Платежи и остаток основного долга</small></div><div className="desktop-overview"><div><small>Остаток долга</small><strong><span>$48 000</span><span>₾7 500</span></strong></div><p>Платёж списывается со счёта. Основной долг и проценты показаны отдельно.</p></div>{LOAN_DATA.map((loan,index)=><a className="account-tile" href={`${screenHref(`${loan.id}?item=${index}`)}`} key={loan.name} onClick={()=>setSelected(index)}><span className={`account-tile-icon${index ? ' bank' : ''}`}><Icon name={index ? 'car' : 'bank'} /></span><span className="account-tile-copy"><strong>{loan.name.split(' · ')[0]}</strong><small>Платёж {loan.due} · долг {money(loan.balance,loan.currency)}</small></span><strong className="account-tile-amount">{money(loan.payment,loan.currency)}</strong></a>)}<a className="flow-secondary" href={screenHref('loan-calc')}>Калькулятор</a><a className="flow-secondary" href={screenHref('loan-schedule')}>График</a><a className="flow-secondary" href={screenHref('loan-extra')}>Досрочное погашение</a></>;
+  return <><div className="entry-head"><h2>Кредиты</h2><small>Платежи и остаток основного долга</small></div><div className="desktop-overview"><div><small>Остаток долга</small><strong><span>$48 000</span><span>₾7 500</span></strong></div><p>Платёж списывается со счёта. Основной долг и проценты показаны отдельно.</p></div>{LOAN_DATA.map((loan,index)=><a className="account-tile" href={`${screenHref(`${loan.id}?item=${index}`)}`} key={loan.name} onClick={()=>setSelected(index)}><span className="account-tile-icon loan"><Icon name="loan" /></span><span className="account-tile-copy"><strong>{loan.name.split(' · ')[0]}</strong><small>Платёж {loan.due} · долг {money(loan.balance,loan.currency)}</small></span><strong className="account-tile-amount">{money(loan.payment,loan.currency)}</strong></a>)}<a className="flow-secondary" href={screenHref('loan-calc')}>Калькулятор</a><a className="flow-secondary" href={screenHref('loan-schedule')}>График</a><a className="flow-secondary" href={screenHref('loan-extra')}>Досрочное погашение</a></>;
 }
 
 export function DebtFlow({ screen }) {
@@ -576,14 +872,14 @@ export function DebtFlow({ screen }) {
     'Анна':{currency:'GEL',balance:240,given:300,returned:60,due:'5 ноября',account:'TBC · GEL',trend:[300,240],labels:['22 сен','02 окт'],events:[['22 сен','Выдал','+₾300','₾300'],['02 окт','Получил возврат','−₾60','₾240']]},
     'Сергей':{currency:'USD',balance:4800,given:5200,returned:400,due:'1 ноября',account:'Наличные',trend:[5200,5100,5000,4900,4800],labels:['18 июл','01 авг','01 сен','01 окт','12 окт'],events:[['18 июл','Получил в долг','+$5 200','$5 200'],['01 авг','Вернул','−$100','$5 100'],['01 сен','Вернул','−$100','$5 000'],['01 окт','Вернул','−$100','$4 900'],['12 окт','Вернул','−$100','$4 800']]}
   };
-  const active=person||'Алексей', activeShared=sharedDebts.filter(item=>item.person===active), baseDetail=history[active], detailCurrency=baseDetail?.currency||activeShared[0]?.currency||'USD', sharedBalance=activeShared.filter(item=>item.currency===detailCurrency).reduce((sum,item)=>sum+(Number(item.amount)||0),0), activeRepayments=debtRepayments.filter(item=>item.person===active), repaymentTotal=activeRepayments.reduce((sum,item)=>sum+(convert(Number(item.amount)||0,item.currency,detailCurrency,currencySettings.rates)||0),0), repaymentEvents=activeRepayments.map(item=>[item.date,'Возврат',`−${money(item.amount,item.currency)}`,money(Math.max(0,(baseDetail?.balance||sharedBalance)-repaymentTotal),detailCurrency)]), detail=baseDetail ? {...baseDetail,given:baseDetail.given+sharedBalance,returned:baseDetail.returned+repaymentTotal,balance:Math.max(0,baseDetail.balance+sharedBalance-repaymentTotal),events:[...baseDetail.events,...activeShared.filter(item=>item.currency===detailCurrency).map(item=>[item.date,'Доля общего расхода',`+${money(item.amount,item.currency)}`,money(item.amount,item.currency)]),...repaymentEvents]} : (activeShared.length ? {currency:detailCurrency,balance:Math.max(0,sharedBalance-repaymentTotal),given:sharedBalance,returned:repaymentTotal,due:'по расходам',account:'Общие расходы',trend:[sharedBalance],labels:[activeShared.at(-1).date],events:[...activeShared.map(item=>[item.date,'Доля общего расхода',`+${money(item.amount,item.currency)}`,money(item.amount,item.currency)]),...repaymentEvents]} : history.Алексей);
+  const active=person||'Алексей', activeShared=sharedDebts.filter(item=>item.person===active), baseDetail=history[active], detailCurrency=baseDetail?.currency||activeShared[0]?.currency||'USD', sharedBalance=activeShared.filter(item=>item.currency===detailCurrency).reduce((sum,item)=>sum+(Number(item.amount)||0),0), activeRepayments=debtRepayments.filter(item=>item.person===active), repaymentTotal=activeRepayments.reduce((sum,item)=>sum+(convert(Number(item.amount)||0,item.currency,detailCurrency,currencySettings.rates)||0),0), repaymentEvents=activeRepayments.map(item=>[formatIsoDate(item.date),'Возврат',`−${money(item.amount,item.currency)}`,money(Math.max(0,(baseDetail?.balance||sharedBalance)-repaymentTotal),detailCurrency)]), detail=baseDetail ? {...baseDetail,given:baseDetail.given+sharedBalance,returned:baseDetail.returned+repaymentTotal,balance:Math.max(0,baseDetail.balance+sharedBalance-repaymentTotal),events:[...baseDetail.events,...activeShared.filter(item=>item.currency===detailCurrency).map(item=>[formatIsoDate(item.date),'Доля общего расхода',`+${money(item.amount,item.currency)}`,money(item.amount,item.currency)]),...repaymentEvents]} : (activeShared.length ? {currency:detailCurrency,balance:Math.max(0,sharedBalance-repaymentTotal),given:sharedBalance,returned:repaymentTotal,due:'по расходам',account:'Общие расходы',trend:[sharedBalance],labels:[formatIsoDate(activeShared.at(-1).date)],events:[...activeShared.map(item=>[formatIsoDate(item.date),'Доля общего расхода',`+${money(item.amount,item.currency)}`,money(item.amount,item.currency)]),...repaymentEvents]} : history.Алексей);
   const repaymentValue=repayAmount||String(Math.min(500,detail.balance));
   if(screen?.id==='debt-new'){
     const value=numeric(debtAmount)||0, days=Math.max(0,Math.round((new Date(dueDate+'T00:00:00')-new Date(debtDate+'T00:00:00'))/86400000)), estimate=interestEnabled?value*(numeric(interestRate)||0)/100*days/365:0;
-    if(created)return <><div className="entry-head"><h2>Долг создан</h2><small>Обязательство без движения денег</small></div><div className="product-hero"><small>{debtor} · {direction==='Мне должны'?'мне вернёт':'я верну'}</small><strong>{money(value,debtCurrency)}</strong><span>Ожидаемый возврат · {dueDate.split('-').reverse().join('.')}</span></div><div className="flow-card compact">{[["Счёт",debtAccount],["Проценты по условиям",interestEnabled?`${interestRate}% годовых · оценка ${money(estimate,debtCurrency)}`:'Без процентов'],["Заметка",debtNote||'Нет']].map(([label,content])=><div className="mobile-data-line" key={label}><span>{label}</span><strong>{content}</strong></div>)}</div><p className="flow-caption">Создание долга не меняет остаток счёта. Движение денег появится при выдаче или возврате.</p><button type="button" className="flow-primary" onClick={()=>{window.location.hash=screenHref('debts');}}>К списку долгов</button></>;
+    if(created)return <><div className="entry-head"><h2>Долг создан</h2><small>Обязательство без движения денег</small></div><div className="product-hero"><small>{debtor} · {direction==='Мне должны'?'мне вернёт':'я верну'}</small><strong>{money(value,debtCurrency)}</strong><span>Ожидаемый возврат · {formatIsoDate(dueDate)}</span></div><div className="flow-card compact">{[["Счёт",debtAccount],["Проценты по условиям",interestEnabled?`${interestRate}% годовых · оценка ${money(estimate,debtCurrency)}`:'Без процентов'],["Заметка",debtNote||'Нет']].map(([label,content])=><div className="mobile-data-line" key={label}><span>{label}</span><strong>{content}</strong></div>)}</div><p className="flow-caption">Создание долга не меняет остаток счёта. Движение денег появится при выдаче или возврате.</p><button type="button" className="flow-primary" onClick={()=>{window.location.hash=screenHref('debts');}}>К списку долгов</button></>;
     return <><div className="entry-head"><h2>Новый долг</h2><small>{direction==='Мне должны'?'Я выдаю деньги':'Я беру деньги'}</small></div><div className="entry-tabs" role="tablist" aria-label="Направление долга">{['Мне должны','Я должен'].map(value=><button type="button" role="tab" aria-selected={direction===value} className={direction===value?'active':''} key={value} onClick={()=>setDirection(value)}>{value}</button>)}</div><div className="entry-amount"><button type="button" className="entry-amount-value" onClick={()=>setFormModal({type:'calc'})} aria-label="Изменить сумму долга">{money(value,'')}</button><button type="button" className="entry-currency" onClick={()=>setFormModal({type:'picker'})}>{currencySymbol(debtCurrency)} <Icon name="chevron" size={16}/></button><small>Сумма займа · откройте калькулятор по нажатию</small></div><div className="flow-card compact"><SelectField label={direction==='Мне должны'?'Кто должен вернуть':'У кого беру в долг'} value={debtor||'Выбрать из плательщиков'} icon="person" onClick={()=>setFormModal({type:'payer'})} /><SelectField label={direction==='Мне должны'?'Счёт выдачи':'Счёт получения'} value={debtAccount} onClick={()=>setFormModal({type:'account'})} /><DateField label="Дата выдачи / получения" value={debtDate} onChange={setDebtDate} /><DateField label="Ожидаемая дата возврата" value={dueDate} onChange={setDueDate} /><label className="flow-inline"><span>Условия</span><span className="debt-interest-toggle"><input type="checkbox" checked={interestEnabled} onChange={event=>setInterestEnabled(event.target.checked)}/> Проценты</span></label>{interestEnabled&&<SelectField label="Ставка годовых" value={`${interestRate}%`} onClick={()=>setFormModal({type:'interest-calc'})} />}<label className="flow-inline"><span>Заметка</span><input value={debtNote} maxLength={120} onChange={event=>setDebtNote(event.target.value)} placeholder="Например, ремонт машины" /></label></div><div className="product-summary-grid"><div><small>Сумма долга</small><strong>{money(value,debtCurrency)}</strong></div><div><small>{interestEnabled?'Оценка процентов':'Начисления'}</small><strong>{interestEnabled?money(estimate,debtCurrency):'0'}</strong></div></div>{interestEnabled&&<p className="flow-caption">Простой расчёт за {days} дней по ставке {interestRate}% годовых. Условия фиксируются в карточке долга.</p>}<button type="button" className="flow-primary" disabled={!debtor||value<=0||dueDate<debtDate} onClick={()=>setCreated(true)}>Сохранить долг</button><p className="flow-caption">Запись долга не меняет остаток счёта. Денежная операция появится при фактической выдаче или получении.</p>{formModal?.type==='calc'&&<Calculator value={debtAmount} onApply={next=>{setDebtAmount(next);setFormModal(null);}} onClose={()=>setFormModal(null)} />}{formModal?.type==='interest-calc'&&<Calculator value={interestRate} decimals={2} onApply={next=>{setInterestRate(next);setFormModal(null);}} onClose={()=>setFormModal(null)} />}{formModal?.type==='payer'&&<PayerPicker selected={debtor} excludeSelf onSelect={name=>{setDebtor(name);setFormModal(null);}} onClose={()=>setFormModal(null)} onManage={()=>setFormModal({type:'payer-directory'})} />}{formModal?.type==='payer-directory'&&<DirectoryEditor type="payer" onClose={()=>setFormModal(null)} />}{formModal?.type==='picker'&&<CurrencyModals modal={formModal} setModal={setFormModal} settings={currencySettings} update={updateCurrencySettings} onCurrency={code=>setDebtCurrency(code)} />}{formModal?.type==='account'&&<AccountPicker first={firstAccount} multi={multiAccount} onSelect={item=>{setDebtAccount(item.name);if(item.multi)setFormModal({type:'pocket',account:item});else{setDebtCurrency(item.currency||debtCurrency);setFormModal(null);}}} onClose={()=>setFormModal(null)} onManage={()=>setFormModal({type:'account-directory'})} />}{formModal?.type==='account-directory'&&<DirectoryEditor type="account" onClose={()=>setFormModal(null)} />}{formModal?.type==='pocket'&&<PocketPicker multi={formModal.account} currency={debtCurrency} selected={debtCurrency} onSelect={code=>{setDebtCurrency(code);setDebtAccount(`${formModal.account.name} · ${currencySymbol(code)} карман`);setFormModal(null);}} onClose={()=>setFormModal(null)} />}</>;
   }
-  if (person || screen?.id === 'debt-detail' || screen?.id === 'debt-repay' || screen?.id === 'debt-repay-preview') return <><button type="button" className="flow-link debt-back" onClick={()=>{if(screen?.id==='debts')setPerson(null);else window.location.hash=screenHref('debts');}}>← Все долги</button><div className="entry-head"><h2>{active}</h2><small>{active==='Сергей'?'Я должен':'Мне должны'}</small></div><section className="mobile-portfolio-card"><div className="desktop-debt-list"><div className="desktop-debt-row"><span className={`desktop-debt-direction${active==='Сергей'?' outgoing':''}`}><Icon name={active==='Сергей'?'arrow':'down'} size={18} /></span><span><strong>{active}</strong><small>Открыт · {detail.account}</small></span><span className="desktop-debt-end"><strong>{money(detail.balance,detail.currency)}</strong><small>До {detail.due}</small></span></div></div></section><div className="product-summary-grid"><div><small>{active==='Сергей'?'Получено в долг':'Всего выдано'}</small><strong>{money(detail.given,detail.currency)}</strong></div><div><small>{active==='Сергей'?'Возвращено':'Возвраты получены'}</small><strong>{money(detail.returned,detail.currency)}</strong></div></div><div className="debt-interest-note"><strong>Начисления процентов</strong><span>0 · без процентов по текущим условиям</span></div><ProductTrend title="Остаток долга по датам" points={detail.trend} labels={detail.labels} tone="red" valueLabel={money(detail.balance,detail.currency)} /><ProductTable caption="Все операции по долгу · нажмите строку для подробностей" columns={['Дата','Операция','Сумма','Остаток']} rows={detail.events} onRowClick={index=>setSelectedEvent(detail.events[index])} /><a className="flow-primary" href={screenHref('debt-repay')}>Записать возврат</a><a className="flow-secondary" href={screenHref('base-journal')}>Показать в журнале</a><p className="flow-caption">Выдачи увеличивают сумму долга, возвраты уменьшают её. В журнале остаются отдельные денежные операции.</p>{selectedEvent&&<div className="flow-overlay" role="dialog" aria-label="Операция по долгу"><div className="flow-sheet"><div className="sheet-head"><strong>{selectedEvent[1]}</strong><button type="button" onClick={()=>setSelectedEvent(null)} aria-label="Закрыть">×</button></div><div className="product-summary-grid"><div><small>Дата</small><strong>{selectedEvent[0]}</strong></div><div><small>Изменение долга</small><strong>{selectedEvent[2]}</strong></div></div><div className="flow-card compact">{[["Остаток после операции",selectedEvent[3]],["Человек",active],["Связанный счёт",detail.account]].map(([label,value])=><div className="mobile-data-line" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div><a className="flow-primary" href={screenHref('base-detail')}>Открыть операцию</a></div></div>}{screen?.id==='debt-repay'&&<div className="flow-overlay" role="dialog" aria-modal="true" aria-label="Записать возврат"><div className="flow-sheet repayment-sheet"><div className="sheet-head"><strong>{repayRecorded?'Возврат записан':'Записать возврат'}</strong><button type="button" onClick={()=>{setRepayRecorded(false);window.location.hash=screenHref('debt-detail');}} aria-label="Закрыть">×</button></div>{repayRecorded?<><div className="product-hero"><small>{active} вернул</small><strong>{money(numeric(repaymentValue)||0,repayCurrency||detail.currency)}</strong><span>Долг будет уменьшен с учётом выбранной валюты</span></div><button type="button" className="flow-primary" onClick={()=>{setRepayRecorded(false);window.location.hash=screenHref('debt-detail');}}>К истории долга</button></>:<><p className="flow-caption">Укажите сумму, которую {active} возвращает сейчас.</p><div className="entry-amount repayment-amount"><button type="button" className="entry-amount-value" onClick={()=>setRepayModal({type:'calc'})} aria-label="Открыть калькулятор суммы возврата">{money(numeric(repaymentValue)||0,'')}</button><button type="button" className="entry-currency" onClick={()=>setRepayModal({type:'picker'})} aria-label="Выбрать валюту возврата">{currencySymbol(repayCurrency||detail.currency)} <Icon name="chevron" size={16}/></button><small>Сумма возврата · нажмите для калькулятора</small></div><DateField label="Дата возврата" value={repayDate} onChange={setRepayDate} /><button type="button" className="flow-primary" disabled={(numeric(repaymentValue)||0)<=0} onClick={()=>{const item={id:String(Date.now()),person:active,amount:numeric(repaymentValue)||0,currency:repayCurrency||detail.currency,date:repayDate,account:detail.account};saveDebtRepayment(item);setDebtRepayments(rows=>[...rows,item]);setRepayRecorded(true);}}>Подтвердить возврат</button></>}{repayModal?.type==='calc'&&<Calculator value={repaymentValue} onApply={next=>{setRepayAmount(next);setRepayModal(null);}} onClose={()=>setRepayModal(null)}/>}{repayModal?.type==='picker'&&<CurrencyModals modal={repayModal} setModal={setRepayModal} settings={currencySettings} update={updateCurrencySettings} onCurrency={code=>{setRepayCurrency(code);setRepayModal(null);}}/>}</div></div>}</>;
+  if (person || screen?.id === 'debt-detail' || screen?.id === 'debt-repay' || screen?.id === 'debt-repay-preview') return <><button type="button" className="flow-link debt-back" onClick={()=>{if(screen?.id==='debts')setPerson(null);else window.location.hash=screenHref('debts');}}>← Все долги</button><div className="entry-head"><h2>{active}</h2><small>{active==='Сергей'?'Я должен':'Мне должны'}</small></div><section className="mobile-portfolio-card"><div className="desktop-debt-list"><div className="desktop-debt-row"><span className={`desktop-debt-direction${active==='Сергей'?' outgoing':''}`}><Icon name={active==='Сергей'?'arrow':'down'} size={18} /></span><span><strong>{active}</strong><small>Открыт · {detail.account}</small></span><span className="desktop-debt-end"><strong>{money(detail.balance,detail.currency)}</strong><small>До {detail.due}</small></span></div></div></section><div className="product-summary-grid"><div><small>{active==='Сергей'?'Получено в долг':'Всего выдано'}</small><strong>{money(detail.given,detail.currency)}</strong></div><div><small>{active==='Сергей'?'Возвращено':'Возвраты получены'}</small><strong>{money(detail.returned,detail.currency)}</strong></div></div><div className="debt-interest-note"><strong>Начисления процентов</strong><span>0 · без процентов по текущим условиям</span></div><ProductTrend title="Остаток долга по датам" points={detail.trend} labels={detail.labels} tone="red" valueLabel={money(detail.balance,detail.currency)} /><ProductTable caption="Все операции по долгу · нажмите строку для подробностей" columns={['Дата','Операция','Сумма','Остаток']} rows={detail.events} onRowClick={index=>setSelectedEvent(detail.events[index])} /><a className="flow-primary" href={screenHref('debt-repay')}>Записать возврат</a><a className="flow-secondary" href={screenHref('base-journal')}>Показать в журнале</a><p className="flow-caption">Выдачи увеличивают сумму долга, возвраты уменьшают её. В журнале остаются отдельные денежные операции.</p>{selectedEvent&&<div className="flow-overlay" role="dialog" aria-label="Операция по долгу"><div className="flow-sheet"><div className="sheet-head"><strong>{selectedEvent[1]}</strong><button type="button" onClick={()=>setSelectedEvent(null)} aria-label="Закрыть">×</button></div><div className="product-summary-grid"><div><small>Дата</small><strong>{selectedEvent[0]}</strong></div><div><small>Изменение долга</small><strong>{selectedEvent[2]}</strong></div></div><div className="flow-card compact">{[["Остаток после операции",selectedEvent[3]],["Человек",active],["Связанный счёт",detail.account]].map(([label,value])=><div className="mobile-data-line" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div><a className="flow-primary" href={screenHref('base-detail')}>Открыть операцию</a></div></div>}{screen?.id==='debt-repay'&&<div className="flow-overlay" role="dialog" aria-modal="true" aria-label="Записать возврат"><div className="flow-sheet repayment-sheet"><div className="sheet-head"><strong>{repayRecorded?'Возврат записан':'Записать возврат'}</strong><button type="button" onClick={()=>{setRepayRecorded(false);window.location.hash=screenHref('debt-detail');}} aria-label="Закрыть">×</button></div>{repayRecorded?<><div className="product-hero"><small>{active} вернул</small><strong>{money(numeric(repaymentValue)||0,repayCurrency||detail.currency)}</strong><span>Долг будет уменьшен с учётом выбранной валюты</span></div><button type="button" className="flow-primary" onClick={()=>{setRepayRecorded(false);window.location.hash=screenHref('debt-detail');}}>К истории долга</button></>:<><p className="flow-caption">Укажите сумму, которую {active} возвращает сейчас.</p><div className="entry-amount repayment-amount"><button type="button" className="entry-amount-value" onClick={()=>setRepayModal({type:'calc'})} aria-label="Открыть калькулятор суммы возврата">{money(numeric(repaymentValue)||0,'')}</button><button type="button" className="entry-currency" onClick={()=>setRepayModal({type:'picker'})} aria-label="Выбрать валюту возврата">{currencySymbol(repayCurrency||detail.currency)} <Icon name="chevron" size={16}/></button><small>Сумма возврата · нажмите для калькулятора</small></div><DateField label="Дата возврата" value={repayDate} onChange={setRepayDate} /><button type="button" className="flow-primary" disabled={(numeric(repaymentValue)||0)<=0} onClick={()=>{const item={id:String(Date.now()),person:active,amount:numeric(repaymentValue)||0,currency:repayCurrency||detail.currency,date:dottedDate(repayDate),account:detail.account};saveDebtRepayment(item);setDebtRepayments(rows=>[...rows,item]);setRepayRecorded(true);}}>Подтвердить возврат</button></>}{repayModal?.type==='calc'&&<Calculator value={repaymentValue} onApply={next=>{setRepayAmount(next);setRepayModal(null);}} onClose={()=>setRepayModal(null)}/>}{repayModal?.type==='picker'&&<CurrencyModals modal={repayModal} setModal={setRepayModal} settings={currencySettings} update={updateCurrencySettings} onCurrency={code=>{setRepayCurrency(code);setRepayModal(null);}}/>}</div></div>}</>;
   const sharedPeople=sharedDebts.reduce((groups,item)=>{const found=groups.find(row=>row.name===item.person);if(found)found.parts.push(money(item.amount,item.currency));else groups.push({name:item.person,direction:'Мне должны',parts:[money(item.amount,item.currency)],date:'по операциям',status:'Открыт'});return groups;},[]).map(item=>({name:item.name,direction:item.direction,balance:item.parts.join(' · '),date:item.date,status:item.status}));
   const people=[{name:'Алексей',direction:'Мне должны',balance:'$1 200',date:'20 окт',status:'Открыт'},{name:'Анна',direction:'Мне должны',balance:'₾240',date:'5 ноя',status:'Открыт'},...sharedPeople,{name:'Сергей',direction:'Я должен',balance:'$4 800',date:'1 ноя',status:'Открыт'}];
   return <><div className="entry-head"><h2>Долги</h2><small>Кто кому должен и когда вернуть</small></div><div className="desktop-overview desktop-overview--debts"><div><small>Мне должны</small><strong><span>$1 200</span><span>₾240</span></strong></div><p>Возвраты и частичные платежи сохраняются в истории. Валюты не складываются без курса.</p></div>{people.map((item,index)=><button type="button" className="account-tile" key={`${item.direction}-${item.name}-${index}`} onClick={()=>setPerson(item.name)}><span className={`account-tile-icon${item.direction==='Я должен'?' bank':''}`}><Icon name={item.direction==='Я должен'?'arrow':'down'} /></span><span className="account-tile-copy"><strong>{item.name}</strong><small>{item.direction} · до {item.date}</small></span><strong className="account-tile-amount">{item.balance}</strong></button>)}<a className="flow-secondary" href={screenHref('debt-new')}>Новый долг</a></>;

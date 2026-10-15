@@ -1,4 +1,4 @@
-import React, { useId, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 export const screenHref = id => {
@@ -12,6 +12,8 @@ const iconPaths = {
   qr:'M3 3h7v7H3zM5.5 5.5h2v2h-2zM14 3h7v7h-7zM16.5 5.5h2v2h-2zM3 14h7v7H3zM5.5 16.5h2v2h-2zM14 14h2v2h-2zM19 14h2v2h-2zM14 19h2v2h-2zM17 17h2v2h-2zM20 19h1v2h-1z',
   wallet:'M4 7h14a2 2 0 0 1 2 2v10H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h13v2M16 11h6v5h-6zM18 13.5h.1',
   bank:'M3 9h18M5 9v10M10 9v10M15 9v10M20 9v10M2 20h20M12 3l10 5H2z',
+  deposit:'M4 17h8M5 14h6M6 11h4M15 18V8M12 11l3-3 3 3',
+  loan:'M6 3h8l4 4v14H6zM14 3v4h4M9 13h.1M14 17h.1M15 12l-6 6',
   food:'M5 3v7M8 3v7M3 7h7M6.5 10v11M16 3v18M16 3c5 3 5 8 0 8',
   plus:'M12 5v14M5 12h14', list:'M9 6h12M9 12h12M9 18h12M3 6h1M3 12h1M3 18h1',
   settings:'M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7M10 2h4l.5 2.1 1.5.6 1.9-1.2 2.8 2.8-1.2 1.9.6 1.5L22 10v4l-2.1.5-.6 1.5 1.2 1.9-2.8 2.8-1.9-1.2-1.5.6L14 22h-4l-.5-2.1-1.5-.6-1.9 1.2-2.8-2.8 1.2-1.9-.6-1.5L2 14v-4l2.1-.5.6-1.5-1.2-1.9 2.8-2.8 1.9 1.2 1.5-.6Z',
@@ -50,23 +52,84 @@ export const iconPrinciples = [
 ];
 export const iconGroups = [
   ['Навигация', ['list', 'house', 'plus', 'chart', 'more', 'search']],
-  ['Деньги', ['wallet', 'bank', 'transfer', 'cart', 'budget', 'tag']],
+  ['Деньги', ['wallet', 'bank', 'deposit', 'loan', 'transfer', 'cart', 'budget', 'tag']],
   ['Люди и вещи', ['person', 'car', 'cup', 'briefcase', 'heart', 'gift']],
   ['Состояния', ['check', 'clock', 'shield', 'calendar', 'note', 'dots']]
 ];
 export function Icon({ name, size = 22, className = '' }) { return <svg className={`icon ${className}`} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={iconPaths[name] || iconPaths.wallet} /></svg>; }
-export function formatIsoDate(iso) {
-  if (!iso) return '';
-  const [year, month, day] = String(iso).split('-');
-  return day ? `${Number(day)}.${month}.${year}` : iso;
+function readCalendarLocale() {
+  try {
+    const data = JSON.parse(localStorage.getItem('finance-design-locale') || '{}');
+    return { lang: data.lang === 'en' || data.lang === 'ka' ? data.lang : 'ru', sunday: data.week === 'sun' };
+  } catch { return { lang: 'ru', sunday: false }; }
 }
-const CALENDAR_MONTHS = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'];
-const CALENDAR_WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-export function DateCalendar({ from = '', to = '', onPick, mode = 'range' }) {
+function dateParts(iso) {
+  const [year, month, day] = String(iso || '').split('-');
+  if (!day) return null;
+  return { year, mm: String(Number(month)).padStart(2, '0'), dd: String(Number(day)).padStart(2, '0') };
+}
+export function dottedDate(iso) {
+  const parts = dateParts(iso);
+  return parts ? `${parts.dd}.${parts.mm}.${parts.year}` : (iso || '');
+}
+export function formatIsoDate(iso) {
+  const parts = dateParts(iso);
+  if (!parts) return iso || '';
+  return readCalendarLocale().lang === 'en' ? `${parts.mm}/${parts.dd}/${parts.year}` : `${parts.dd}.${parts.mm}.${parts.year}`;
+}
+const CALENDAR_MONTHS = {
+  ru: ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'],
+  en: ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'],
+  ka: ['იანვარი', 'თებერვალი', 'მარტი', 'აპრილი', 'მაისი', 'ივნისი', 'ივლისი', 'აგვისტო', 'სექტემბერი', 'ოქტომბერი', 'ნოემბერი', 'დეკემბერი']
+};
+const CALENDAR_WEEKDAYS = {
+  ru: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
+  en: ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'],
+  ka: ['ორ', 'სამ', 'ოთხ', 'ხუთ', 'პარ', 'შაბ', 'კვ']
+};
+const CALENDAR_WEEKDAYS_SUN = {
+  ru: ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'],
+  en: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
+  ka: ['კვ', 'ორ', 'სამ', 'ოთხ', 'ხუთ', 'პარ', 'შაბ']
+};
+function parseTypedDate(text, lang) {
+  const clean = String(text || '').trim();
+  const iso = clean.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const dotted = clean.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/);
+  const slashed = clean.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  let year, month, day;
+  if (iso) { year = Number(iso[1]); month = Number(iso[2]); day = Number(iso[3]); }
+  else if (lang === 'en' && slashed) { month = Number(slashed[1]); day = Number(slashed[2]); year = Number(slashed[3]); }
+  else if (dotted || slashed) {
+    const match = dotted || slashed;
+    day = Number(match[1]); month = Number(match[2]); year = Number(match[3]);
+  } else return '';
+  if (month < 1 || month > 12 || day < 1 || day > 31 || year < 1900 || year > 2100) return '';
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return '';
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+export function DateCalendar({ from = '', to = '', onPick, onRangeChange, mode = 'range' }) {
+  const [locale, setLocale] = useState(readCalendarLocale);
+  const fromField = useRef(null);
+  const toField = useRef(null);
+  const [fromText, setFromText] = useState(() => formatIsoDate(from));
+  const [toText, setToText] = useState(() => (to && to !== from ? formatIsoDate(to) : ''));
+  useEffect(() => {
+    const refresh = () => setLocale(readCalendarLocale());
+    window.addEventListener('finance-locale', refresh);
+    return () => window.removeEventListener('finance-locale', refresh);
+  }, []);
+  useEffect(() => {
+    if (document.activeElement !== fromField.current) setFromText(formatIsoDate(from));
+  }, [from, locale.lang]);
+  useEffect(() => {
+    if (document.activeElement !== toField.current) setToText(to && to !== from ? formatIsoDate(to) : '');
+  }, [to, from, locale.lang]);
   const initial = from ? new Date(`${from}T00:00:00`) : new Date();
   const [cursor, setCursor] = useState(new Date(initial.getFullYear(), initial.getMonth(), 1));
   const year = cursor.getFullYear(), month = cursor.getMonth();
-  const lead = (new Date(year, month, 1).getDay() + 6) % 7;
+  const lead = locale.sunday ? new Date(year, month, 1).getDay() : (new Date(year, month, 1).getDay() + 6) % 7;
   const count = new Date(year, month + 1, 0).getDate();
   const today = new Date();
   const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -74,14 +137,50 @@ export function DateCalendar({ from = '', to = '', onPick, mode = 'range' }) {
   const start = ranged ? (from < to ? from : to) : from;
   const end = ranged ? (from < to ? to : from) : '';
   const cells = [...Array(lead).fill(null), ...Array.from({ length: count }, (_, index) => index + 1)];
-  return <div className="date-calendar"><div className="date-calendar-head"><button type="button" aria-label="Предыдущий месяц" onClick={() => setCursor(new Date(year, month - 1, 1))}><Icon name="chevron" size={16} className="date-calendar-prev" /></button><strong>{`${CALENDAR_MONTHS[month][0].toUpperCase()}${CALENDAR_MONTHS[month].slice(1)} ${year}`}</strong><button type="button" aria-label="Следующий месяц" onClick={() => setCursor(new Date(year, month + 1, 1))}><Icon name="chevron" size={16} /></button></div><div className="date-calendar-week">{CALENDAR_WEEKDAYS.map((day, index) => <span key={day} className={index > 4 ? 'weekend' : ''}>{day}</span>)}</div><div className="date-calendar-grid">{cells.map((day, index) => {
+  const months = CALENDAR_MONTHS[locale.lang];
+  const weekdays = (locale.sunday ? CALENDAR_WEEKDAYS_SUN : CALENDAR_WEEKDAYS)[locale.lang];
+  const weekend = column => locale.sunday ? column === 0 || column === 6 : column > 4;
+  const title = `${months[month][0].toUpperCase()}${months[month].slice(1)} ${year}`;
+  const placeholder = locale.lang === 'en' ? 'MM/DD/YYYY' : 'ДД.ММ.ГГГГ';
+  const commit = (text, which) => {
+    const trimmed = text.trim();
+    if (!trimmed) {
+      if (which === 'to') setToText('');
+      else setFromText(formatIsoDate(from));
+      if (mode === 'range' && which === 'to' && onRangeChange) onRangeChange(from, '');
+      return;
+    }
+    const iso = parseTypedDate(trimmed, locale.lang);
+    if (!iso) {
+      if (which === 'to') setToText(to && to !== from ? formatIsoDate(to) : '');
+      else setFromText(formatIsoDate(from));
+      return;
+    }
+    setCursor(new Date(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, 1));
+    if (mode !== 'range') { onPick(iso); setFromText(formatIsoDate(iso)); return; }
+    const end = to && to !== from ? to : '';
+    let nextFrom = iso;
+    let nextTo = '';
+    if (which === 'to') {
+      const start = from || iso;
+      nextFrom = start < iso ? start : iso;
+      nextTo = start === iso ? '' : (start < iso ? iso : start);
+    } else if (end && iso > end) { nextFrom = end; nextTo = iso; }
+    else nextTo = end;
+    setFromText(formatIsoDate(nextFrom));
+    setToText(nextTo ? formatIsoDate(nextTo) : '');
+    if (onRangeChange) onRangeChange(nextFrom, nextTo);
+    else onPick(iso);
+  };
+  const field = (which, label, value, setValue, ref) => <label><span>{label}</span><input ref={ref} value={value} placeholder={placeholder} aria-label={label} autoComplete="off" onChange={event => setValue(event.target.value)} onBlur={event => commit(event.target.value, which)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); commit(event.currentTarget.value, which); } }} /></label>;
+  return <div className="date-calendar"><div className="date-calendar-fields">{field('from', mode === 'range' ? 'С' : 'Дата', fromText, setFromText, fromField)}{mode === 'range' && field('to', 'По', toText, setToText, toField)}</div><div className="date-calendar-head"><button type="button" aria-label="Предыдущий месяц" onClick={() => setCursor(new Date(year, month - 1, 1))}><Icon name="chevron" size={16} className="date-calendar-prev" /></button><strong>{title}</strong><button type="button" aria-label="Следующий месяц" onClick={() => setCursor(new Date(year, month + 1, 1))}><Icon name="chevron" size={16} /></button></div><div className="date-calendar-week">{weekdays.map((day, index) => <span key={day} className={weekend(index) ? 'weekend' : ''}>{day}</span>)}</div><div className="date-calendar-grid">{cells.map((day, index) => {
     if (!day) return <span key={`empty-${index}`} />;
     const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const column = (lead + day - 1) % 7;
     const picked = end ? iso >= start && iso <= end : iso === start;
     const roundLeft = picked && (iso === start || column === 0);
     const roundRight = picked && ((end ? iso === end : true) || column === 6);
-    const classes = [picked ? 'picked' : '', roundLeft ? 'round-left' : '', roundRight ? 'round-right' : '', iso === todayIso && !picked ? 'today' : '', column > 4 && !picked ? 'weekend' : ''].filter(Boolean).join(' ');
+    const classes = [picked ? 'picked' : '', roundLeft ? 'round-left' : '', roundRight ? 'round-right' : '', iso === todayIso && !picked ? 'today' : '', weekend(column) && !picked ? 'weekend' : ''].filter(Boolean).join(' ');
     return <button type="button" key={iso} className={classes} aria-pressed={picked} onClick={() => onPick(iso)}>{day}</button>;
   })}</div></div>;
 }
@@ -175,7 +274,7 @@ export function MobileHero({ label, amount, currency = '₽', footer, meta }) {
 }
 
 export function AccountTile({ title, subtitle, amount, href, kind = 'wallet', mark }) {
-  const body = <><span className={`account-tile-icon ${kind === 'bank' ? 'bank' : ''}`}>{mark ? <span className="account-tile-mark">{mark}</span> : <Icon name={kind} />}</span><span className="account-tile-copy"><strong>{title}</strong>{subtitle && <small>{subtitle}</small>}</span><strong className="account-tile-amount">{amount}</strong></>;
+  const body = <><span className={`account-tile-icon${kind === 'bank' ? ' bank' : ''}${kind === 'loan' ? ' loan' : ''}`}>{mark ? <span className="account-tile-mark">{mark}</span> : <Icon name={kind} />}</span><span className="account-tile-copy"><strong>{title}</strong>{subtitle && <small>{subtitle}</small>}</span><strong className="account-tile-amount">{amount}</strong></>;
   return href ? <a className="account-tile" href={href}>{body}</a> : <div className="account-tile">{body}</div>;
 }
 
