@@ -9,7 +9,7 @@
     "url": "https://github.com/finance-design/finance-design.git"
   },
   "private": true,
-  "version": "2.0.1",
+  "version": "2.1.15",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
