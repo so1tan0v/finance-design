@@ -181,7 +181,7 @@ export function DateCalendar({ from = '', to = '', onPick, onRangeChange, mode =
     const roundLeft = picked && (iso === start || column === 0);
     const roundRight = picked && ((end ? iso === end : true) || column === 6);
     const classes = [picked ? 'picked' : '', roundLeft ? 'round-left' : '', roundRight ? 'round-right' : '', iso === todayIso && !picked ? 'today' : '', weekend(column) && !picked ? 'weekend' : ''].filter(Boolean).join(' ');
-    return <button type="button" key={iso} className={classes} aria-pressed={picked} onClick={() => onPick(iso)}>{day}</button>;
+    return <button type="button" key={iso} className={classes} aria-pressed={picked} aria-label={`${day} ${months[month]} ${year}`} onClick={() => onPick(iso)}>{day}</button>;
   })}</div></div>;
 }
 export function DateField({ label, value, onChange }) {
@@ -192,7 +192,7 @@ export function DateField({ label, value, onChange }) {
   const inPhone = Boolean(host?.classList?.contains('phone'));
   return <>
     <button ref={anchor} type="button" className="flow-inline date-field" onClick={() => { setDraft(value || ''); setHost(anchor.current?.closest('.phone') || document.body); setOpen(true); }}><span>{label}</span><strong>{formatIsoDate(value) || 'Выбрать'}</strong></button>
-    {open && host && createPortal(<div className={`flow-overlay date-field-overlay${inPhone ? '' : ' date-field-overlay--page'}`} role="dialog" aria-label={label}><div className="flow-sheet"><div className="sheet-head"><strong>{label}</strong><button type="button" onClick={() => setOpen(false)} aria-label="Закрыть">×</button></div><DateCalendar mode="single" from={draft} onPick={setDraft} /><button type="button" className="flow-primary date-calendar-apply" disabled={!draft} onClick={() => { onChange(draft); setOpen(false); }}>Выбрать</button></div></div>, host)}
+    {open && host && createPortal(<div className={`flow-overlay date-field-overlay${inPhone ? '' : ' date-field-overlay--page'}`} role="dialog" aria-modal="true" aria-label={label}><div className="flow-sheet"><div className="sheet-head"><strong>{label}</strong><button type="button" onClick={() => setOpen(false)} aria-label="Закрыть">×</button></div><DateCalendar mode="single" from={draft} onPick={setDraft} /><button type="button" className="flow-primary date-calendar-apply" disabled={!draft} onClick={() => { onChange(draft); setOpen(false); }}>Выбрать</button></div></div>, host)}
   </>;
 }
 export const chartPalette = [
@@ -218,13 +218,66 @@ export function DonutChart({ segments, centerLabel, centerValue, onSelect, selec
     return <button type="button" key={item.label} className={selected === item.label ? 'selected' : ''} aria-pressed={selected === item.label} onClick={() => onSelect(item.label)}>{body}</button>;
   })}</div></div></div>;
 }
-export function TrendChart({ title, points, labels, valueLabel, tone = 'green' }) {
-  const width = 320, height = 142, padX = 14, padY = 18;
-  const values = points.map(point => Number(point) || 0), min = Math.min(...values), max = Math.max(...values), span = max - min || 1;
-  const coords = values.map((value, index) => [padX + index * (width - 2 * padX) / Math.max(1, values.length - 1), height - padY - (value - min) / span * (height - 2 * padY)]);
+function chartStep(span) {
+  const raw = span || 1;
+  const power = 10 ** Math.floor(Math.log10(raw));
+  const fraction = raw / power;
+  const nice = fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 5 ? 5 : 10;
+  return nice * power;
+}
+function chartBounds(values) {
+  const min = Math.min(...values), max = Math.max(...values), span = max - min;
+  if (!span) {
+    const pad = Math.abs(max) * 0.2 || 1;
+    return { low: max - pad, high: max + pad, ticks: [max] };
+  }
+  const step = chartStep(span / 2);
+  const low = Math.floor(min / step) * step;
+  const high = Math.max(low + step, Math.ceil(max / step) * step);
+  return { low, high, ticks: [high, low] };
+}
+const compactNumber = value => new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(value);
+export function TrendChart({ title, points, labels, valueLabel, formatValue, plain = false }) {
+  const [selected, setSelected] = useState(null);
+  const width = 320, height = 120, padRight = 4, padTop = 10, padBottom = 6;
+  const values = points.map(point => Number(point) || 0);
+  const falling = values.length > 1 && values.at(-1) < values[0];
+  const tone = falling ? 'red' : 'green';
+  const { low, high, ticks } = chartBounds(values);
+  const padLeft = Math.max(32, 6 + Math.max(...ticks.map(tick => String(compactNumber(tick)).length)) * 5.4);
+  const plotBottom = height - padBottom;
+  const yOf = value => plotBottom - (value - low) / (high - low) * (plotBottom - padTop);
+  const coords = values.map((value, index) => [
+    padLeft + index * (width - padLeft - padRight) / Math.max(1, values.length - 1),
+    yOf(value)
+  ]);
+  const format = formatValue || compactNumber;
+  const captions = values.map(format);
   const line = coords.map(([x, y]) => `${x},${y}`).join(' ');
-  const fill = `${padX},${height - padY} ${line} ${width - padX},${height - padY}`;
-  return <section className="report-panel product-chart-card"><div className="product-chart-head"><strong>{title}</strong><span>{valueLabel}</span></div><svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${title}: ${values.join(', ')}`} className={`product-trend ${tone}`}><line x1={padX} y1={height * .28} x2={width - padX} y2={height * .28} /><line x1={padX} y1={height * .62} x2={width - padX} y2={height * .62} /><polygon points={fill} /><polyline points={line} />{coords.map(([x, y], index) => <circle key={index} cx={x} cy={y} r="3.5" />)}</svg><div className="product-chart-labels">{labels.map(label => <small key={label}>{label}</small>)}</div></section>;
+  const axisTop = yOf(ticks[0]), axisBottom = yOf(ticks.at(-1));
+  const captionAt = labels.flatMap((label, index) => {
+    if (!label || !coords[index]) return [];
+    const at = labels.length === coords.length || labels.length < 2 ? index : Math.round(index * (coords.length - 1) / (labels.length - 1));
+    return coords[at] ? [[at, label]] : [];
+  });
+  const seen = new Set();
+  const captionSlots = captionAt.filter(([at]) => seen.has(at) ? false : seen.add(at));
+  const stepX = (width - padLeft - padRight) / Math.max(1, coords.length - 1);
+  const labelWidth = label => String(label).length * 5.6;
+  const axisLabels = [];
+  captionSlots.forEach((entry, entryIndex) => {
+    const lastEntry = entryIndex === captionSlots.length - 1;
+    while (axisLabels.length) {
+      const previous = axisLabels.at(-1);
+      const gap = (entry[0] - previous[0]) * stepX;
+      const needed = labelWidth(previous[1]) / 2 + (lastEntry ? labelWidth(entry[1]) : labelWidth(entry[1]) / 2) + 6;
+      if (gap >= needed || axisLabels.length === 1 && lastEntry) break;
+      if (!lastEntry) return;
+      axisLabels.pop();
+    }
+    axisLabels.push(entry);
+  });
+  return <section className={plain ? 'product-chart-card' : 'report-panel product-chart-card'}><div className="product-chart-head"><strong>{title}</strong><span>{valueLabel}</span></div><div className={`product-trend-plot${tone === 'red' ? ' red' : ''}`}><svg viewBox={`0 0 ${width} ${height}`} className={`product-trend ${tone}`} aria-hidden="true"><line className="product-trend-spine" x1={padLeft} x2={padLeft} y1={axisTop} y2={plotBottom} /><line className="product-trend-spine" x1={padLeft} x2={width - padRight} y1={plotBottom} y2={plotBottom} />{ticks.map(tick => { const y = yOf(tick); return <g key={tick}><line className="product-trend-spine" x1={padLeft} x2={padLeft + 5} y1={y} y2={y} /><text className="product-trend-axis" x={padLeft - 4} y={y + 3} textAnchor="end">{compactNumber(tick)}</text></g>; })}<polyline points={line} /></svg>{coords.map(([x, y], index) => <button type="button" key={`${labels[index] || index}-${captions[index]}`} className="product-trend-point" style={{ left: `${x / width * 100}%`, top: `${y / height * 100}%` }} aria-pressed={selected === index} aria-label={`${labels[index] ? `${labels[index]}, ` : ''}${captions[index]}`} onClick={() => setSelected(selected === index ? null : index)}>{selected === index && <span className={`product-trend-tip${y < 26 ? ' below' : ''}${index === 0 ? ' start' : index === coords.length - 1 ? ' end' : ''}`}>{captions[index]}</span>}</button>)}</div><div className="product-chart-labels">{axisLabels.map(([index, label]) => <small key={`${label}-${index}`} className={index === coords.length - 1 ? 'end' : ''} style={{ left: `${coords[index][0] / width * 100}%` }}>{label}</small>)}</div></section>;
 }
 export function DataTable({ caption, columns, rows }) {
   return <div className="kit-table">{caption && <div className="kit-table-caption">{caption}</div>}<table><thead><tr>{columns.map(column => <th key={column}>{column}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={index}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>)}</tbody></table></div>;
@@ -281,6 +334,94 @@ export function MobileHero({ label, amount, currency = '₽', footer, meta }) {
 export function AccountTile({ title, subtitle, amount, href, kind = 'wallet', mark }) {
   const body = <><span className={`account-tile-icon${kind === 'bank' ? ' bank' : ''}${kind === 'loan' ? ' loan' : ''}`}>{mark ? <span className="account-tile-mark">{mark}</span> : <Icon name={kind} />}</span><span className="account-tile-copy"><strong>{title}</strong>{subtitle && <small>{subtitle}</small>}</span><strong className="account-tile-amount">{amount}</strong></>;
   return href ? <a className="account-tile" href={href}>{body}</a> : <div className="account-tile">{body}</div>;
+}
+
+export function OverlayFocus() {
+  const openers = useRef(new Map());
+  useEffect(() => {
+    const selector = '.flow-overlay';
+    const focusableSelector = 'a[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+    const focusables = dialog => [...dialog.querySelectorAll(focusableSelector)].filter(element => !element.closest('[aria-hidden="true"]') && element.getClientRects().length > 0);
+    let pending = null;
+    let pendingAt = 0;
+    const remember = (overlay, opener) => {
+      if (openers.current.has(overlay) || !(opener instanceof HTMLElement) || overlay.contains(opener)) return;
+      openers.current.set(overlay, opener);
+    };
+    const track = overlay => {
+      remember(overlay, document.activeElement);
+      if (performance.now() - pendingAt < 1000) remember(overlay, pending);
+      requestAnimationFrame(() => {
+        if (!overlay.isConnected || overlay.contains(document.activeElement)) return;
+        const [first] = focusables(overlay);
+        if (first) first.focus();
+      });
+    };
+    const onFocusIn = event => {
+      const overlay = event.target instanceof Element ? event.target.closest(selector) : null;
+      if (overlay) remember(overlay, event.relatedTarget);
+    };
+    const onClick = event => {
+      if (!(event.target instanceof Element) || event.target.closest(selector)) return;
+      pending = event.target;
+      pendingAt = performance.now();
+    };
+    const observer = new MutationObserver(records => {
+      for (const record of records) {
+        for (const node of record.removedNodes) {
+          if (!(node instanceof Element)) continue;
+          const overlays = node.matches?.(selector) ? [node] : [...(node.querySelectorAll?.(selector) || [])];
+          for (const overlay of overlays) {
+            const opener = openers.current.get(overlay);
+            openers.current.delete(overlay);
+            setTimeout(() => {
+              if (opener instanceof HTMLElement && document.contains(opener)) opener.focus();
+            }, 0);
+          }
+        }
+        for (const node of record.addedNodes) {
+          if (!(node instanceof Element)) continue;
+          const overlays = node.matches?.(selector) ? [node] : [...(node.querySelectorAll?.(selector) || [])];
+          overlays.forEach(track);
+        }
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    document.addEventListener('focusin', onFocusIn, true);
+    document.addEventListener('click', onClick, true);
+    document.querySelectorAll(selector).forEach(track);
+    const onKey = event => {
+      const dialog = [...document.querySelectorAll(selector)].at(-1);
+      if (!dialog) return;
+      if (event.key === 'Escape') {
+        const close = dialog.querySelector('.sheet-head button[aria-label="Закрыть"]');
+        if (!close) return;
+        event.preventDefault();
+        event.stopPropagation();
+        close.click();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const items = focusables(dialog);
+      if (!items.length) return;
+      const first = items[0];
+      const last = items.at(-1);
+      const inside = dialog.contains(document.activeElement);
+      if (!inside || (event.shiftKey && document.activeElement === first) || (!event.shiftKey && document.activeElement === last)) {
+        event.preventDefault();
+        event.stopPropagation();
+        (event.shiftKey ? last : first).focus();
+      }
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => {
+      observer.disconnect();
+      document.removeEventListener('focusin', onFocusIn, true);
+      document.removeEventListener('click', onClick, true);
+      document.removeEventListener('keydown', onKey, true);
+    };
+  }, []);
+  return null;
 }
 
 export function MobileFormField({ label, value, icon = 'note', type = 'text' }) {

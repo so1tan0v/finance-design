@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { retiredIds } from '../data/screens.js';
 import { DateCalendar, DateField, Icon, Progress, formatIsoDate, screenHref } from './ui.jsx';
 import { addSharedDebts, currencySymbol, getAccountRows, readCreatedOperations, readPayers, readSharedDebts, readTagRecords, rememberOperation, writeTagRecords } from './FinanceFlows.jsx';
@@ -138,7 +138,7 @@ function moneyText(amount, currency = 'RUB') {
   return `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(Number(amount) || 0)}\u00a0${currencySymbol(currency)}`;
 }
 function Sheet({ title, onClose, children }) {
-  return <div className="flow-overlay" role="dialog" aria-label={title}><div className="flow-sheet"><div className="sheet-head"><strong>{title}</strong><button type="button" onClick={onClose} aria-label="Закрыть">×</button></div>{children}</div></div>;
+  return <div className="flow-overlay" role="dialog" aria-modal="true" aria-label={title}><div className="flow-sheet"><div className="sheet-head"><strong>{title}</strong><button type="button" onClick={onClose} aria-label="Закрыть">×</button></div>{children}</div></div>;
 }
 function Head({ title, subtitle }) {
   return <div className="entry-head"><h2>{t(title)}</h2>{subtitle && <small>{subtitle}</small>}</div>;
@@ -419,14 +419,33 @@ function TagsFlow() {
   const [name, setName] = useState('');
   const [color, setColor] = useState(tagColors[0]);
   const [menu, setMenu] = useState('');
+  const [undo, setUndo] = useState(null);
+  const undoTimer = useRef(null);
   const persist = next => { writeTagRecords(next); setTags(next); };
+  const remove = item => {
+    const index = tags.findIndex(row => row.name === item.name);
+    persist(tags.filter(row => row.name !== item.name));
+    setMenu('');
+    setUndo({ item, index });
+    clearTimeout(undoTimer.current);
+    undoTimer.current = setTimeout(() => setUndo(null), 6000);
+  };
+  const restore = () => {
+    if (!undo) return;
+    const next = [...tags];
+    next.splice(Math.min(undo.index, next.length), 0, undo.item);
+    persist(next);
+    setUndo(null);
+    clearTimeout(undoTimer.current);
+  };
+  useEffect(() => () => clearTimeout(undoTimer.current), []);
   const add = () => {
     const title = name.trim();
     if (!title || tags.some(item => item.name.toLowerCase() === title.toLowerCase())) return;
     persist([...tags, { name: title, color }]);
     setName('');
   };
-  return <><Head title="Теги и правила" subtitle="Метка и цвет, без влияния на сумму" /><p className="flow-caption">Тег помечает операцию для фильтра журнала. Цвет выбирается при создании. У сохранённого тега цвет и удаление спрятаны в меню.</p><div className="filter-chips">{tagColors.map(item => <button type="button" key={item} className={`tag-color${color === item ? ' active' : ''}`} style={{ background: item }} aria-label={item} aria-pressed={color === item} onClick={() => setColor(item)} />)}</div><label className="flow-inline"><span>Новый тег</span><input value={name} onChange={event => setName(event.target.value)} placeholder="Например, Отпуск" onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); add(); } }} /></label><button type="button" className="flow-primary" disabled={!name.trim()} onClick={add}>Добавить тег</button>{tags.map(item => <article className="goal-card tag-saved" key={item.name}><header><span className="tag-saved-name"><span className="tag-dot" style={{ background: item.color }} /><strong>{item.name}</strong></span><button type="button" className="tag-menu-button" aria-label={`Действия: ${item.name}`} aria-expanded={menu === item.name} onClick={() => setMenu(menu === item.name ? '' : item.name)}><Icon name="dots" size={16} /></button></header>{menu === item.name && <div className="tag-menu-panel"><p>Цвет</p><div className="filter-chips">{tagColors.map(swatch => <button type="button" key={swatch} className={`tag-color${item.color === swatch ? ' active' : ''}`} style={{ background: swatch }} aria-label={swatch} onClick={() => { persist(tags.map(row => row.name === item.name ? { ...row, color: swatch } : row)); setMenu(''); }} />)}</div><button type="button" className="flow-link" onClick={() => { persist(tags.filter(row => row.name !== item.name)); setMenu(''); }}>Удалить</button></div>}</article>)}</>;
+  return <><Head title="Теги и правила" subtitle="Метка и цвет, без влияния на сумму" /><p className="flow-caption">Тег помечает операцию для фильтра журнала. Цвет выбирается при создании. У сохранённого тега цвет и удаление спрятаны в меню.</p><div className="filter-chips">{tagColors.map(item => <button type="button" key={item} className={`tag-color${color === item ? ' active' : ''}`} style={{ background: item }} aria-label={item} aria-pressed={color === item} onClick={() => setColor(item)} />)}</div><label className="flow-inline"><span>Новый тег</span><input value={name} onChange={event => setName(event.target.value)} placeholder="Например, Отпуск" onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); add(); } }} /></label><button type="button" className="flow-primary" disabled={!name.trim()} onClick={add}>Добавить тег</button>{undo && <p className="flow-caption" role="status">Тег «{undo.item.name}» удалён. <button type="button" className="flow-link" onClick={restore}>Вернуть</button></p>}{tags.map(item => <article className="goal-card tag-saved" key={item.name}><header><span className="tag-saved-name"><span className="tag-dot" style={{ background: item.color }} /><strong>{item.name}</strong></span><button type="button" className="tag-menu-button" aria-label={`Действия: ${item.name}`} aria-expanded={menu === item.name} onClick={() => setMenu(menu === item.name ? '' : item.name)}><Icon name="dots" size={16} /></button></header>{menu === item.name && <div className="tag-menu-panel"><p>Цвет</p><div className="filter-chips">{tagColors.map(swatch => <button type="button" key={swatch} className={`tag-color${item.color === swatch ? ' active' : ''}`} style={{ background: swatch }} aria-label={swatch} onClick={() => { persist(tags.map(row => row.name === item.name ? { ...row, color: swatch } : row)); setMenu(''); }} />)}</div><button type="button" className="flow-link" onClick={() => remove(item)}>Удалить</button></div>}</article>)}</>;
 }
 
 function DirectoriesFlow() {

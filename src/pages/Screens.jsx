@@ -36,6 +36,7 @@ export default function Screens({ selectedId }) {
   const [finderQuery, setFinderQuery] = useState('');
   const stageRef = useRef(null);
   const switchRef = useRef(null);
+  const finderRef = useRef(null);
   const currentGroup = groupOf(selected.id);
   const switchIds = (currentGroup?.ids || []).filter(id => !retired.has(id));
   const groupLabel = retired.has(selected.id) ? 'Раздел снят' : (currentGroup?.title || 'Экран');
@@ -70,11 +71,15 @@ export default function Screens({ selectedId }) {
 
   useEffect(() => {
     const keydown = event => {
+      if (event.key === 'Escape') {
+        if (finderOpen) setFinderOpen(false);
+        else setFullscreen(false);
+        return;
+      }
       if (['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName) || event.altKey || event.ctrlKey || event.metaKey) return;
       if (event.key === 'ArrowLeft' && index > 0) navigate(screens[index - 1].id);
       if (event.key === 'ArrowRight' && index < screens.length - 1) navigate(screens[index + 1].id);
       if (event.key === '/' && !finderOpen) { event.preventDefault(); setFinderOpen(true); }
-      if (event.key === 'Escape') { if (finderOpen) setFinderOpen(false); else setFullscreen(false); }
     };
     document.addEventListener('keydown', keydown);
     return () => document.removeEventListener('keydown', keydown);
@@ -84,12 +89,17 @@ export default function Screens({ selectedId }) {
     switchRef.current?.querySelector('.active')?.scrollIntoView({ inline: 'center', block: 'nearest' });
   }, [selected.id]);
 
+  useEffect(() => {
+    if (!finderOpen || window.matchMedia('(pointer: coarse)').matches) return;
+    finderRef.current?.focus();
+  }, [finderOpen]);
+
   return <div className="screens-page">
     <div className="screens-intro"><div><p className="eyebrow">SO1 MONEY</p><h1>Экраны приложения</h1><p>Одно приложение · {frame.caption} · {screens.length - retiredIds.length} в приложении · {retiredIds.length} сняты</p></div><a href="#scenarios">Сценарии <Icon name="arrow" size={17} /></a></div>
     <div className={`screen-stage ${fullscreen ? 'fullscreen' : ''} ${fitToViewport ? 'fit-to-viewport' : 'actual-size'}`} ref={stageRef}>
       <nav className="screen-switch" aria-label={currentGroup?.title || 'Текущая группа'} ref={switchRef}>{switchIds.map(id => <a key={id} href={screenHref(id)} className={selected.id === id ? 'active' : ''} aria-current={selected.id === id ? 'page' : undefined}>{screenMap.get(id).title}</a>)}</nav>
       <div className="screen-stage-toolbar"><div className="screen-stage-title"><small>{String(index + 1).padStart(3,'0')} / {screens.length} · {groupLabel}</small><strong>{selected.title}</strong></div><div className="screen-stage-controls"><button type="button" onClick={() => navigate(screens[index - 1]?.id)} disabled={index === 0} aria-label="Предыдущий экран"><Icon name="back" size={18} /></button><button type="button" onClick={() => navigate(screens[index + 1]?.id)} disabled={index === screens.length - 1} aria-label="Следующий экран"><Icon name="arrow" size={18} /></button><button type="button" onClick={() => { setFinderOpen(value => !value); setFinderQuery(''); }} aria-label="Найти экран"><Icon name="search" size={18} /></button><select aria-label="Все экраны" value={selected.id} onChange={event => navigate(event.target.value)}>{groups.map(group => <optgroup key={group.title} label={group.title}>{group.ids.map(id => <option key={id} value={id}>{retired.has(id) ? `Снято · ${screenMap.get(id).title}` : screenMap.get(id).title}</option>)}</optgroup>)}</select><div className="device-switch" role="group" aria-label="Размер кадра">{Object.entries(frames).map(([id, item]) => <button type="button" key={id} className={device === id ? 'active' : ''} aria-pressed={device === id} onClick={() => chooseDevice(id)}>{item.label}</button>)}</div><button type="button" onClick={() => setFitToViewport(value => !value)} aria-pressed={fitToViewport}>{fitToViewport ? 'Размер 100%' : frame.fit}</button><a className="screen-back-to-kit" href="#kit">UI Kit</a><button type="button" className="expand-button" onClick={() => setFullscreen(value => !value)}>{fullscreen ? 'К разделам' : 'Развернуть'}</button></div></div>
-      {finderOpen && <div className="screen-finder"><input autoFocus type="search" value={finderQuery} onChange={event => setFinderQuery(event.target.value)} placeholder="Название экрана или раздела" aria-label="Поиск экрана" /><div>{screens.filter(item => `${item.title} ${item.subtitle} ${item.trace || ''}`.toLowerCase().includes(finderQuery.toLowerCase())).slice(0, 12).map(item => <button type="button" key={item.id} onClick={() => { navigate(item.id); setFinderOpen(false); }}>{retired.has(item.id) ? `Снято · ${item.title}` : item.title}<small>{item.subtitle || (retired.has(item.id) ? 'Раздел снят из приложения' : '')}</small></button>)}</div></div>}
+      {finderOpen && <div className="screen-finder"><input ref={finderRef} type="search" value={finderQuery} onChange={event => setFinderQuery(event.target.value)} placeholder="Название экрана или раздела" aria-label="Поиск экрана" /><div>{screens.filter(item => `${item.title} ${item.subtitle} ${item.trace || ''}`.toLowerCase().includes(finderQuery.toLowerCase())).slice(0, 12).map(item => <button type="button" key={item.id} onClick={() => { navigate(item.id); setFinderOpen(false); }}>{retired.has(item.id) ? `Снято · ${item.title}` : item.title}<small>{item.subtitle || (retired.has(item.id) ? 'Раздел снят из приложения' : '')}</small></button>)}</div></div>}
       <div className={`phone-frame phone-frame--${device}`} style={{ width: frame.width * scale, height: frame.height * scale }}><div style={{ width: frame.width, height: frame.height, transform: `scale(${scale})`, transformOrigin: 'top left' }}><Phone screen={selected} form={device} /></div></div>
       <p className="stage-help" style={{ maxWidth: frame.width }}>{fitToViewport ? frame.fitted : frame.help}</p>
     </div>
