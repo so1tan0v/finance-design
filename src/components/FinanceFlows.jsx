@@ -900,28 +900,64 @@ function usesCalculator(label, value) {
   if (/дата|время|период|назван|цвет|язык|формат|идентификатор/.test(lower)) return false;
   return true;
 }
-export function PrototypeField({ label, value, icon = 'note' }) {
+const screenDraftKey = 'finance-design-screen-drafts';
+
+export function readScreenDraft(screenId, label, fallback = '') {
+  try {
+    const all = JSON.parse(sessionStorage.getItem(screenDraftKey) || '{}');
+    const next = all?.[screenId]?.[label];
+    return next == null ? fallback : next;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeScreenDraft(screenId, label, next) {
+  try {
+    const all = JSON.parse(sessionStorage.getItem(screenDraftKey) || '{}');
+    all[screenId] = { ...(all[screenId] || {}), [label]: next };
+    sessionStorage.setItem(screenDraftKey, JSON.stringify(all));
+  } catch { /* поле остаётся на экране, предпросмотр берёт исходное значение */ }
+  window.dispatchEvent(new Event(screenDraftKey));
+}
+
+export function useScreenDrafts() {
+  const [version, setVersion] = useState(0);
+  useEffect(() => {
+    const refresh = () => setVersion(item => item + 1);
+    window.addEventListener(screenDraftKey, refresh);
+    return () => window.removeEventListener(screenDraftKey, refresh);
+  }, []);
+  return version;
+}
+
+export function PrototypeField({ label, value, icon = 'note', screenId = '' }) {
   const [settings, update] = useCurrencySettings();
-  const [current, setCurrent] = useState(value);
+  const stored = screenId ? readScreenDraft(screenId, label, value) : value;
+  const [current, setCurrent] = useState(stored);
   const [modal, setModal] = useState(null);
+  const commit = next => {
+    setCurrent(next);
+    if (screenId) writeScreenDraft(screenId, label, next);
+  };
   const first = getFirstAccount(), multi = getMultiAccount();
   const lower = label.toLowerCase();
-  const numberMatch = String(value).match(/\d[\d\s\u00a0]*(?:[,.]\d+)?/);
+  const numberMatch = String(stored).match(/\d[\d\s\u00a0]*(?:[,.]\d+)?/);
   const isNumber = usesCalculator(label, value);
   const precise = /[,.]\d{3,}/.test(String(value)) || /количеств|курс|btc|eth/i.test(`${label} ${value}`);
   const type = isNumber ? 'calc' : /категор|category/.test(lower) ? 'category' : /платель|payer/.test(lower) ? 'payer' : /валют|currency|актив/.test(lower) && !/код валюты/.test(lower) ? 'picker' : /сч[её]т|account|откуда|куда/.test(lower) ? 'account' : /частот|периодич|окончан|если дня нет/.test(lower) ? 'choice' : null;
   const [amount, setAmount] = useState(numberMatch ? numberMatch[0].replace(/[\s\u00a0]/g, '').replace(',', '.') : '0');
   const symbolCodes = { '₽': 'RUB', '$': 'USD', '€': 'EUR', '₾': 'GEL', '£': 'GBP', '₫': 'VND', '₩': 'KRW', '֏': 'AMD', '₺': 'TRY', '₸': 'KZT', '₴': 'UAH', '฿': 'THB', '¥': 'CNY' };
-  const [currency, setCurrency] = useState((String(value).match(/\b(?:USD|EUR|GEL|RUB|GBP|VND|KRW|MYR|AMD|TRY|KZT|UAH|PLN|THB|CNY)\b/) || [symbolCodes[String(value).match(/[₽$€₾£₫₩֏₺₸₴฿¥]/)?.[0]] || settings.base])[0]);
+  const [currency, setCurrency] = useState((String(stored).match(/\b(?:USD|EUR|GEL|RUB|GBP|VND|KRW|MYR|AMD|TRY|KZT|UAH|PLN|THB|CNY)\b/) || [symbolCodes[String(stored).match(/[₽$€₾£₫₩֏₺₸₴฿¥]/)?.[0]] || settings.base])[0]);
   const choices = /частот|периодич/.test(lower) ? ['Не повторять','Каждую неделю','Каждый месяц','Каждый год'] : /окончан/.test(lower) ? ['Без окончания','После 12 раз','По дате'] : ['Последний день месяца','Пропустить'];
-  if (!type) return <label className="fact-row"><span className="fact-icon"><Icon name={icon} size={16} /></span><span className="fact-copy"><small>{label}</small><input value={current} onChange={event => setCurrent(event.target.value)} placeholder="Укажите" /></span></label>;
+  if (!type) return <label className="fact-row"><span className="fact-icon"><Icon name={icon} size={16} /></span><span className="fact-copy"><small>{label}</small><input value={current} onChange={event => commit(event.target.value)} placeholder="Укажите" /></span></label>;
   return <><button type="button" className="fact-row" onClick={() => setModal({ type })}><span className="fact-icon"><Icon name={icon} size={16} /></span><span className="fact-copy"><small>{label}</small><strong>{current || 'Не задано'}</strong></span><Icon name="chevron" size={16} /></button>
-    {modal?.type === 'calc' && <Calculator value={amount} decimals={precise ? 8 : 2} onApply={next => { const formatted = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: precise ? 8 : 2 }).format(Number(next)); const suffix = String(value).trim().match(/(\s*(?:%|[₽$€₾£₫₩]|[A-Za-zа-яё]{2,12}))\s*$/i); setAmount(next); setCurrent(suffix ? `${formatted} ${suffix[1].trim()}` : formatted); setModal(null); }} onClose={() => setModal(null)} />}
-    {['picker','rate','add'].includes(modal?.type) && <CurrencyModals modal={modal} setModal={setModal} settings={settings} update={update} onCurrency={code => { setCurrency(code); setCurrent(`${currencySymbol(code)} ${code}`); }} />}
-    {modal?.type === 'account' && <AccountPicker first={first} multi={multi} onSelect={item => { setCurrent(item.name); setModal(item.multi ? { type: 'pocket' } : null); }} onClose={() => setModal(null)} onManage={() => setModal({ type: 'directory', directory: 'account', returnTo: { type: 'account' } })} />}
-    {modal?.type === 'pocket' && <PocketPicker multi={multi} currency={currency} onSelect={code => { setCurrent(`${multi.name} · ${code}`); setModal(null); }} onClose={() => setModal(null)} />}
-    {modal?.type === 'category' && <CategoryPicker kind="Расход" selected={current} onSelect={next => { setCurrent(next); setModal(null); }} onClose={() => setModal(null)} onManage={() => setModal({ type: 'directory', directory: 'category', returnTo: { type: 'category' } })} />}
-    {modal?.type === 'payer' && <PayerPicker selected={current} onSelect={next => { setCurrent(next); setModal(null); }} onClose={() => setModal(null)} onManage={() => setModal({ type: 'directory', directory: 'payer', returnTo: { type: 'payer' } })} />}
-    {modal?.type === 'choice' && <div className="flow-overlay" role="dialog" aria-label={label}><div className="flow-sheet"><div className="sheet-head"><strong>{label}</strong><button type="button" onClick={() => setModal(null)} aria-label="Закрыть">×</button></div><div className="account-picker-list">{choices.map(item => <button type="button" className="payer-picker-row" key={item} onClick={() => { setCurrent(item); setModal(null); }}>{item}</button>)}</div></div></div>}
+    {modal?.type === 'calc' && <Calculator value={amount} decimals={precise ? 8 : 2} onApply={next => { const formatted = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: precise ? 8 : 2 }).format(Number(next)); const suffix = String(value).trim().match(/(\s*(?:%|[₽$€₾£₫₩]|[A-Za-zа-яё]{2,12}))\s*$/i); const shown = suffix ? `${formatted} ${suffix[1].trim()}` : formatted; setAmount(next); commit(shown); setModal(null); }} onClose={() => setModal(null)} />}
+    {['picker','rate','add'].includes(modal?.type) && <CurrencyModals modal={modal} setModal={setModal} settings={settings} update={update} onCurrency={code => { setCurrency(code); commit(`${currencySymbol(code)} ${code}`); }} />}
+    {modal?.type === 'account' && <AccountPicker first={first} multi={multi} onSelect={item => { commit(item.name); setModal(item.multi ? { type: 'pocket' } : null); }} onClose={() => setModal(null)} onManage={() => setModal({ type: 'directory', directory: 'account', returnTo: { type: 'account' } })} />}
+    {modal?.type === 'pocket' && <PocketPicker multi={multi} currency={currency} onSelect={code => { commit(`${multi.name} · ${code}`); setModal(null); }} onClose={() => setModal(null)} />}
+    {modal?.type === 'category' && <CategoryPicker kind="Расход" selected={current} onSelect={next => { commit(next); setModal(null); }} onClose={() => setModal(null)} onManage={() => setModal({ type: 'directory', directory: 'category', returnTo: { type: 'category' } })} />}
+    {modal?.type === 'payer' && <PayerPicker selected={current} onSelect={next => { commit(next); setModal(null); }} onClose={() => setModal(null)} onManage={() => setModal({ type: 'directory', directory: 'payer', returnTo: { type: 'payer' } })} />}
+    {modal?.type === 'choice' && <div className="flow-overlay" role="dialog" aria-label={label}><div className="flow-sheet"><div className="sheet-head"><strong>{label}</strong><button type="button" onClick={() => setModal(null)} aria-label="Закрыть">×</button></div><div className="account-picker-list">{choices.map(item => <button type="button" className="payer-picker-row" key={item} onClick={() => { commit(item); setModal(null); }}>{item}</button>)}</div></div></div>}
     {modal?.type === 'directory' && <DirectoryEditor type={modal.directory} onClose={() => setModal(modal.returnTo)} />}</>;
 }
