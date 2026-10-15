@@ -525,3 +525,37 @@ html[data-theme="dark"] .donut>div{background:var(--surface)}
 html[data-theme="dark"] .date-calendar-fields input{background:#2c3833}
 html[data-theme="dark"] .phone .entry-currency,html[data-theme="dark"] .phone .split-toggle,html[data-theme="dark"] .phone .split-card,html[data-theme="dark"] .phone .report-panel,html[data-theme="dark"] .phone .report-filters button,html[data-theme="dark"] .phone .entry-capture-actions a,html[data-theme="dark"] .phone .flow-choice{background:#2c3833;color:var(--ink);border-color:var(--border)}
 html[data-theme="dark"] .phone .split-toggle.on{background:#24362d}
+
+.theme-choice label{position:relative;flex:1;min-height:40px;display:flex;align-items:center;justify-content:center;border-radius:10px;background:transparent;color:var(--ink);font-weight:650;font-size:12px;cursor:pointer}
+.theme-choice input{position:absolute;width:1px;height:1px;margin:0;opacity:0}
+.theme-choice label:has(:checked){background:var(--card);color:var(--ink);box-shadow:0 1px 3px #17352722}
+.theme-choice label:has(:focus-visible){outline:3px solid var(--focus);outline-offset:2px}
+html[data-theme="dark"] .theme-choice label:has(:checked){background:var(--card);color:var(--ink)}
+.chip{background:var(--card);color:var(--ink)}
+.chip.selected{background:var(--primary-soft);border-color:var(--primary);color:var(--primary)}
+.entry-tabs button,.mobile-tabs>*{color:var(--muted)}
+.desktop-overview strong,.phone .desktop-overview strong,.phone .fact-copy strong,.phone .fact-copy input{color:var(--ink)}
+.desktop-overview small,.desktop-overview p,.phone .fact-copy small{color:var(--muted)}
+html[data-theme="dark"] .entry-tabs button,html[data-theme="dark"] .mobile-tabs>*{color:var(--ink)}
+html[data-theme="dark"] .entry-tabs button.active,html[data-theme="dark"] .mobile-tabs>.selected,html[data-theme="dark"] .chip.selected{background:var(--primary-soft);color:var(--ink);border-color:var(--primary);box-shadow:inset 0 0 0 1.5px var(--primary)}
+html[data-theme="dark"] .desktop-overview,html[data-theme="dark"] .phone .desktop-overview,html[data-theme="dark"] .phone .desktop-overview--loans{background:var(--card);border-color:var(--border);color:var(--ink)}
+.report-legend .legend-item,.report-legend button{display:grid;grid-template-columns:12px 1fr auto;align-items:center;gap:6px;width:100%;min-height:32px;padding:7px 4px;border:0;border-radius:8px;background:transparent;color:var(--ink);text-align:left;font-size:13px}
+.report-legend button.selected{background:var(--primary-soft)}
+.flow-danger{width:100%;min-height:48px;border-radius:16px;padding:11px 17px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:13px;font-weight:600;border:1px solid transparent;background:var(--expense-soft);color:var(--expense);margin-top:10px;text-decoration:none}
+.scenario-layout{display:block}
+.scenario-side{margin-top:12px}
+.scenario-check{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px 16px}
+.scenario-check h3{margin:0 0 8px;font-size:15px;letter-spacing:-.02em}
+.scenario-check p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
+.scenario-check p+p{margin-top:8px}
+.scenario-actions{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.scenario-actions>a,.scenario-actions>button{margin-top:0;font-family:inherit}
+html[data-theme="dark"] :is(.button--primary,.flow-primary,.phone .flow-primary,.phone-nav>a.add,.phone-nav .nav-add,.phone-wide .phone-nav>a.add,.site-nav a.active,.screen-switch a.active,.screen-group a.active,.date-calendar-grid button.picked,.calc-grid button.equal,.calc-grid button:last-child,.search-scopes button.active,.journal-date-filter.active,.filter-chip.active){background:#317f60;color:#fff}
+html[data-theme="dark"] .phone-wide .phone-nav>a.add{background:#317f60;color:#fff}
+html[data-theme="dark"] :is(.button--primary,.flow-primary):hover:not(:disabled){background:#2a6e52;color:#fff}
+.scenario-kicker{margin:10px 16px 0;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.fact-static{cursor:default}
+.phone-wide .scenario-layout.has-fields{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(260px,.8fr);gap:8px 28px;align-items:start}
+.phone-wide .scenario-layout.has-fields .scenario-side,.phone-wide .scenario-fields{margin-top:0}
+.phone-wide .scenario-layout:not(.has-fields) .scenario-side{max-width:640px}
+.scenario-card li a.is-retired{background:transparent;color:var(--muted);border:1px dashed var(--border)}

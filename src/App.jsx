@@ -4,7 +4,7 @@ import Kit from './pages/Kit.jsx';
 import Screens from './pages/Screens.jsx';
 import Scenarios from './pages/Scenarios.jsx';
 import Docs from './pages/Docs.jsx';
-import { screenMap, screens, scenarios } from './data/screens.js';
+import { retiredIds, screenMap, screens, scenarios } from './data/screens.js';
 import { BrandMark } from './components/ui.jsx';
 
 const tabs = [['brandbook', 'Brandbook'], ['kit', 'UI Kit'], ['screens', 'Экраны'], ['scenarios', 'Сценарии'], ['docs', 'Документация']];
@@ -52,5 +52,5 @@ export default function App() {
   const id = routeParts.join('/').split('?')[0];
   const active = tabs.some(([key]) => key === section) ? section : 'brandbook';
   useEffect(() => { document.title = `So1 Money — ${tabs.find(([key]) => key === active)?.[1] || 'Дизайн-система'}`; }, [active]);
-  return <div className="app-shell"><div className="site-header-bar" ref={headerRef}><header className="site-header"><a className="brand" href="#brandbook"><BrandMark /><span>So1 Money<small>Design system</small></span></a><nav className="site-nav" aria-label="Разделы дизайна">{tabs.map(([key, label]) => <a href={`#${key}`} key={key} className={active === key ? 'active' : ''} aria-current={active === key ? 'page' : undefined}>{label}</a>)}</nav><div className="header-meta">Одно приложение на всех экранах<br />{screens.length} экрана · {scenarios.length} сценариев</div></header></div><main className="page" id="main">{active === 'brandbook' && <Brandbook />}{active === 'kit' && <Kit />}{active === 'screens' && <Screens selectedId={id} />}{active === 'scenarios' && <Scenarios />}{active === 'docs' && <Docs anchor={id} />}</main></div>;
+  return <div className="app-shell"><div className="site-header-bar" ref={headerRef}><header className="site-header"><a className="brand" href="#brandbook"><BrandMark /><span>So1 Money<small>Design system</small></span></a><nav className="site-nav" aria-label="Разделы дизайна">{tabs.map(([key, label]) => <a href={`#${key}`} key={key} className={active === key ? 'active' : ''} aria-current={active === key ? 'page' : undefined}>{label}</a>)}</nav><div className="header-meta">Одно приложение на всех экранах<br />{screens.length - retiredIds.length} в приложении · {retiredIds.length} сняты · {scenarios.length} сценариев</div></header></div><main className="page" id="main">{active === 'brandbook' && <Brandbook />}{active === 'kit' && <Kit />}{active === 'screens' && <Screens selectedId={id} />}{active === 'scenarios' && <Scenarios />}{active === 'docs' && <Docs anchor={id} />}</main></div>;
 }

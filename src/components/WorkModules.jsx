@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { retiredIds } from '../data/screens.js';
 import { DateCalendar, DateField, Icon, Progress, formatIsoDate, screenHref } from './ui.jsx';
 import { addSharedDebts, currencySymbol, getAccountRows, readCreatedOperations, readPayers, readSharedDebts, readTagRecords, rememberOperation, writeTagRecords } from './FinanceFlows.jsx';
 
@@ -149,7 +150,7 @@ function Toggle({ pressed, onClick, children }) {
 export function ThemeChoice() {
   const mode = useStored(themeKey, 'system')[0];
   useLocale();
-  return <div className="theme-choice" role="radiogroup" aria-label={t('Тема')}>{[['system', 'Как в системе'], ['light', 'Светлая'], ['dark', 'Тёмная']].map(([id, label]) => <button type="button" key={id} className={mode === id ? 'active' : ''} aria-pressed={mode === id} onClick={() => setTheme(id)}>{t(label)}</button>)}</div>;
+  return <div className="theme-choice" role="radiogroup" aria-label={t('Тема')}>{[['system', 'Как в системе'], ['light', 'Светлая'], ['dark', 'Тёмная']].map(([id, label]) => <label key={id} className={mode === id ? 'active' : ''}><input type="radio" name="finance-theme" value={id} checked={mode === id} onChange={() => setTheme(id)} />{t(label)}</label>)}</div>;
 }
 
 function GoalsFlow() {
@@ -640,9 +641,5 @@ export const workViews = {
   'import-preview': ImportFlow,
   'duplicate-review': ImportFlow,
   'export-data': ExportFlow,
-  calendar: RemovedFlow,
-  'forecast-day': RemovedFlow,
-  forecast: RemovedFlow,
-  merchants: RemovedFlow,
-  'merchant-edit': RemovedFlow
+  ...Object.fromEntries(retiredIds.map(id => [id, RemovedFlow]))
 };

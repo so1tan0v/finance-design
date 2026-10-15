@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AccountTile, Button, DateCalendar, Icon, MobileFormField, MobileHero, Notice, Progress, chartPalette, formatIsoDate, screenHref } from './ui.jsx';
-import { WelcomeFlow, EntryFlow, CurrenciesFlow, AccountCreateFlow, PocketsFlow, BudgetFlow, DepositFlow, LoanFlow, DebtFlow, DirectoryEditor, PrototypeField, TagPicker, Calculator, CATEGORY_TREE, applyAccountAdjustment, currencySymbol, getAccountRows, getFirstAccount, readCreatedOperations, readDirectory, readOperationTags, readPayers, readSettings, readTagRecords, rememberOperation, writeOperationTags } from './FinanceFlows.jsx';
+import { WelcomeFlow, EntryFlow, CurrenciesFlow, AccountCreateFlow, PocketsFlow, BudgetFlow, DepositFlow, LoanFlow, DebtFlow, DirectoryEditor, PrototypeField, TagPicker, Calculator, CATEGORY_TREE, applyAccountAdjustment, currencySymbol, getAccountRows, getFirstAccount, readCreatedOperations, readDirectory, readOperationTags, readPayers, readScreenDraft, readSettings, readTagRecords, rememberOperation, useScreenDrafts, writeOperationTags } from './FinanceFlows.jsx';
 import { JournalFilterButton, JournalFilterChips, ThemeChoice, activeBookId, emptyJournalFilters, operationInProject, readBooks, t, useLocale, workViews } from './WorkModules.jsx';
 import { screens } from '../data/screens.js';
 import { coverageViews } from './CoverageFlows.jsx';
@@ -18,12 +18,48 @@ const wideNavGroups = [
   { label: 'Ввод и данные', items: [['receipt', 'Фото чека', 'camera', ['receipt']], ['qr-receipt', 'QR чека', 'qr', ['qr-receipt']], ['import-file', 'Импорт', 'down', ['import-file', 'import-preview', 'duplicate-review']], ['export-data', 'Экспорт', 'arrow', ['export-data']]] },
   { label: 'Настройки', items: [['books', 'Книги учёта', 'wallet', ['books']], ['tags', 'Теги и правила', 'tag', ['tags']], ['backup', 'Резервная копия', 'shield', ['backup']], ['sync', 'Синхронизация', 'transfer', ['sync']], ['notifications', 'Уведомления', 'clock', ['notifications']], ['access-settings', 'Приватность и доступ', 'shield', ['access-settings']], ['locale-settings', 'Язык и отображение', 'settings', ['locale-settings', 'language']], ['base-settings', 'Все настройки', 'settings', ['base-settings']]] },
 ];
+const navRules = [
+  ['receipt', /^(receipt|receipt-items)$/],
+  ['qr-receipt', /^qr-receipt$/],
+  ['import-file', /^(import-|duplicate-review|review-)/],
+  ['export-data', /^export-data$/],
+  ['op-fee', /^op-fee/],
+  ['base-journal', /^(op-split|op-refund|split-|journal-|saved-search|change-history|history-undo)/],
+  ['base-accounts', /^(account-|reconcile|net-worth)/],
+  ['budget', /^budget/],
+  ['goals', /^goal/],
+  ['subscriptions', /^(subscriptions|repeat)$/],
+  ['together', /^(together|trip-|share-|repayment-|contact-ledger)/],
+  ['debts', /^debt/],
+  ['deposits', /^deposit/],
+  ['loans', /^loan/],
+  ['projects', /^project/],
+  ['currencies', /^(currencies|available|rates)$/],
+  ['books', /^book/],
+  ['tags', /^(tags|rules|rule-|bulk-preview)/],
+  ['backup', /^(backup|restore|recovery)/],
+  ['sync', /^(sync|device-link|conflict)/],
+  ['notifications', /^notification/],
+  ['access-settings', /^access-settings$/],
+  ['locale-settings', /^(locale-settings|language)$/],
+  ['base-settings', /^(api-|bot-|widget-|security-|landing|cloud-|directories|sms-|quick-input|template-edit)/]
+];
+function activeNav(id) {
+  for (const group of wideNavGroups) for (const [route, , , ids] of group.items) if (id === route || ids.includes(id)) return route;
+  const matched = navRules.find(([, pattern]) => pattern.test(id));
+  if (!matched) return '';
+  return matched[0] === 'op-fee' ? 'base-transfer' : matched[0];
+}
 function MobileNav({ id, wide = false }) {
   useLocale();
   if (id === 'base-welcome') return null;
+  const current = activeNav(id);
   const add = <a className="add" href={go('base-expense')} aria-label="Новая операция"><Icon name="plus" size={22} /></a>;
-  if (wide) return <nav className="phone-nav" aria-label="Навигация приложения">{add}{wideNavGroups.map(group => <div className="nav-group" key={group.label}><span className="nav-group-label">{t(group.label)}</span>{group.items.map(([route, title, icon, ids]) => <a key={route} className={ids.includes(id) ? 'selected' : ''} href={go(route)}><Icon name={icon} /><span>{t(title)}</span></a>)}</div>)}</nav>;
-  return <nav className="phone-nav" aria-label="Навигация приложения"><a className={['base-journal', 'base-detail', 'journal-filters', 'saved-search', 'trip-detail', 'trip-expense', 'trip-settle', 'share-link', 'reports', 'pie', 'enreports'].includes(id) ? 'selected' : ''} href={go('base-journal')}><Icon name="list" />{t('Журнал')}</a><a className={['base-accounts', 'base-account', 'accounts', 'pockets', 'account-review', 'reconcile'].includes(id) ? 'selected' : ''} href={go('base-accounts')}><Icon name="house" />{t('Главная')}</a>{add}<a className={['base-settings', 'debts', 'debt-new', 'debt-detail', 'debt-repay', 'deposits', 'deposit-new', 'deposit-detail', 'loans', 'loan-detail', 'loan-calc'].includes(id) ? 'selected' : ''} href={go('base-settings')}><Icon name="more" />{t('Ещё')}</a></nav>;
+  if (wide) return <nav className="phone-nav" aria-label="Навигация приложения">{add}{wideNavGroups.map(group => <div className="nav-group" key={group.label}><span className="nav-group-label">{t(group.label)}</span>{group.items.map(([route, title, icon]) => <a key={route} className={current === route ? 'selected' : ''} href={go(route)} aria-current={current === route ? 'page' : undefined}><Icon name={icon} /><span>{t(title)}</span></a>)}</div>)}</nav>;
+  const onJournal = ['base-journal', 'receipt', 'qr-receipt', 'import-file', 'export-data'].includes(current);
+  const onHome = current === 'base-accounts';
+  const onMore = Boolean(current) && !onJournal && !onHome && current !== 'base-transfer';
+  return <nav className="phone-nav" aria-label="Навигация приложения"><a className={onJournal ? 'selected' : ''} href={go('base-journal')} aria-current={onJournal ? 'page' : undefined}><Icon name="list" />{t('Журнал')}</a><a className={onHome ? 'selected' : ''} href={go('base-accounts')} aria-current={onHome ? 'page' : undefined}><Icon name="house" />{t('Главная')}</a>{add}<a className={onMore ? 'selected' : ''} href={go('base-settings')} aria-current={onMore ? 'page' : undefined}><Icon name="more" />{t('Ещё')}</a></nav>;
 }
 function Topline({ title, back, subtitle, accessory }) { return <div className={`mobile-topline ${back ? 'small' : ''}`}>{back ? <a className="circle-button" href={go(back)} aria-label="Назад"><Icon name="back" /></a> : <div><small>{subtitle}</small><h2>{title}</h2></div>}{back && <h2>{title}</h2>}{accessory || <span className="topline-spacer" />}</div>; }
 function SectionHeading({ title, action, to }) { return <div className="mobile-section-heading"><h3>{title}</h3>{action && <a href={go(to)}>{action} <Icon name="chevron" size={17} /></a>}</div>; }
@@ -405,24 +441,147 @@ function overviewClass(id) {
   if (/import|sync|backup|report|review|export/.test(id)) return ' desktop-overview--reports';
   return '';
 }
+function isBackAction(value) { return /^(назад|вернуться)(?:\s|$)/i.test(String(value || '').trim()); }
+function isResultScreen(id) { return /preview$|result$|-diff$|explain$|undo$|revoke$|^conflict$|share-conflict$/.test(id); }
+function isFactField(screen, field) {
+  if (isResultScreen(screen.id)) return true;
+  return /поступит|чистый расход|бюджет периода|не найдено|ожидает проведения|не совпала|будет изменено|найдено записей|пропущено|новые записи|совпадения|вложения|последстви|моя версия|другая версия|итого|нераспредел|остаток по уч[её]ту|остаток по плану|прогноз|начислен|экономия|подтвержд[её]нн|новое предложение|затронуто|долг до|долг после|полученн|новый остаток/i.test(field.value);
+}
+const trailKey = 'finance-design-screen-trail';
+function readTrail() {
+  try {
+    const value = JSON.parse(sessionStorage.getItem(trailKey) || '[]');
+    return Array.isArray(value) ? value.filter(item => typeof item === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+function noteVisit(id) {
+  if (!id) return;
+  const trail = readTrail();
+  if (trail[trail.length - 1] === id) return;
+  trail.push(id);
+  try { sessionStorage.setItem(trailKey, JSON.stringify(trail.slice(-40))); } catch { /* возврат останется по подписи экрана */ }
+}
+function visitedBefore(id) {
+  const trail = readTrail();
+  const index = trail.lastIndexOf(id);
+  return index > 0 ? trail[index - 1] : '';
+}
+function contextBack(screen, actions) {
+  const visited = visitedBefore(screen.id);
+  if (visited && screens.some(item => item.id === visited)) return visited;
+  const explicit = actions.find(item => isBackAction(item.value) && item.target);
+  return explicit ? explicit.target : '';
+}
+function moneyParts(text) {
+  const source = String(text ?? '');
+  const match = source.match(/([+\-−])?\s*(\d[\d\s\u00a0]*(?:[,.]\d+)?)/);
+  if (!match) return null;
+  const amount = Number(match[2].replace(/[\s\u00a0]/g, '').replace(',', '.'));
+  if (!Number.isFinite(amount)) return null;
+  const sign = match[1] === '-' || match[1] === '−' ? -1 : 1;
+  const suffix = source.slice((match.index || 0) + match[0].length).match(/^\s*(%|[₽$€₾£₫₩]|[A-Z]{3})/);
+  return { abs: amount, suffix: suffix ? suffix[1] : '', negative: sign < 0 };
+}
+function formatMoney(value, suffix) {
+  const formatted = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(Math.abs(value));
+  const body = suffix ? `${formatted} ${suffix}` : formatted;
+  return value < 0 ? `−${body}` : body;
+}
+function sourceAmount(screenId, label) {
+  const source = screens.find(item => item.id === screenId);
+  const field = source?.elements.find(item => item.type === 'input' && item.value === label);
+  return moneyParts(readScreenDraft(screenId, label, field?.target ?? ''));
+}
+function presentScreen(screen) {
+  const fields = screen.elements.filter(item => item.type === 'input').map(field => ({ ...field, target: readScreenDraft(screen.id, field.value, field.target) }));
+  if (screen.id === 'op-refund-preview') {
+    const purchase = sourceAmount('op-refund', 'Исходная покупка');
+    const refund = sourceAmount('op-refund', 'Сумма возврата');
+    if (!purchase || !refund) return { fields, saveBlocked: false, extraNote: '' };
+    const suffix = refund.suffix || purchase.suffix || '₽';
+    const net = Math.round((purchase.abs - refund.abs) * 100) / 100;
+    const incoming = formatMoney(refund.abs, suffix);
+    const map = { 'Поступит на счёт': incoming, 'Чистый расход покупки': formatMoney(net, suffix), 'Бюджет периода': formatMoney(-refund.abs, suffix) };
+    const blocked = refund.abs > purchase.abs;
+    return {
+      fields: fields.map(field => (map[field.value] ? { ...field, target: map[field.value] } : field)),
+      saveBlocked: blocked,
+      extraNote: blocked ? 'Сумма возврата больше исходной покупки. Подтверждение недоступно, пока возврат не станет меньше или равен покупке.' : `На счёт поступит ${incoming}. Чистый расход покупки — ${formatMoney(net, suffix)}.`
+    };
+  }
+  if (screen.id === 'reconcile-diff') {
+    const statement = sourceAmount('reconcile', 'Остаток по выписке');
+    const book = sourceAmount('reconcile', 'Остаток по учёту');
+    if (!statement || !book) return { fields, saveBlocked: false, extraNote: '' };
+    const gap = Math.round((statement.abs - book.abs) * 100) / 100;
+    const shown = formatMoney(gap, statement.suffix || book.suffix || '$');
+    return {
+      fields: fields.map(field => (/не найдено/i.test(field.value) ? { ...field, target: shown } : field)),
+      saveBlocked: false,
+      extraNote: `Не найдено в журнале: ${shown}.`
+    };
+  }
+  if (screen.id === 'op-split') {
+    const originalTotal = moneyParts(screen.elements.find(item => item.type === 'input' && item.value === 'Итог покупки')?.target);
+    const originalGap = moneyParts(screen.elements.find(item => item.type === 'input' && item.value === 'Нераспределено')?.target);
+    const currentTotal = moneyParts(fields.find(field => field.value === 'Итог покупки')?.target);
+    if (!originalTotal || !originalGap || !currentTotal) return { fields, saveBlocked: true, extraNote: '' };
+    const allocated = Math.round((originalTotal.abs - originalGap.abs) * 100) / 100;
+    const remainder = Math.round((currentTotal.abs - allocated) * 100) / 100;
+    const shown = formatMoney(remainder, currentTotal.suffix || originalGap.suffix || '₽');
+    return {
+      fields: fields.map(field => (field.value === 'Нераспределено' ? { ...field, target: shown } : field)),
+      saveBlocked: remainder !== 0,
+      extraNote: remainder === 0 ? 'Сумма частей сходится с итогом. Разделение можно сохранить.' : ''
+    };
+  }
+  return { fields, saveBlocked: false, extraNote: '' };
+}
+function actionClass(value, primary) {
+  if (/^(отозвать|удалить)(?:\s|$)/i.test(value)) return 'flow-danger';
+  if (!primary.used && /^(подтвердить|сохранить|применить|создать|импортировать|записать|добавить корректировку|выбрать мою версию)(?:\s|$)/i.test(value)) {
+    primary.used = true;
+    return 'flow-primary';
+  }
+  return 'flow-secondary';
+}
+function FactLine({ label, value, icon }) {
+  return <div className="fact-row fact-static"><span className="fact-icon"><Icon name={icon} size={16} /></span><span className="fact-copy"><small>{label}</small><strong>{value || '—'}</strong></span></div>;
+}
 function Extended({ screen }) {
-  const fields = screen.elements.filter(item => item.type === 'input');
-  const notes = screen.elements.filter(item => item.type === 'text');
-  const headline = fields.find(field => /^[+\-−]?\d[\d\s\u00a0]*(?:[,.]\d+)?\s*(?:%|[₽$€₾£₫₩]|[A-Z]{3})?$/.test(String(field.target || '').trim()) && !/дата|сумм|лимит|ставк|количеств|порог|комисс|плат|цена|процент/i.test(field.value));
+  useScreenDrafts();
+  const preview = presentScreen(screen);
+  const fields = preview.fields;
+  const notes = screen.elements.filter(item => item.type === 'text').filter(note => preview.saveBlocked || !/сохранен\p{L}*\s+недоступн/iu.test(note.value));
+  const actions = screen.elements.filter(item => item.type === 'action');
+  const back = contextBack(screen, actions);
+  const shown = actions.filter(item => !(back && isBackAction(item.value) && item.target === back));
+  const headline = fields.find(field => /^[+\-−]?\d[\d\s\u00a0]*(?:[,.]\d+)?\s*(?:%|[₽$€₾£₫₩]|[A-Z]{3})?$/.test(String(field.target || '').trim()) && !/дата|сумм|лимит|ставк|количеств|порог|комисс|плат|цена|процент|остаток по выписке|остаток по уч|итог покупки/i.test(field.value));
   const body = fields.filter(field => field !== headline);
-  const lead = notes[0]?.value;
+  const facts = body.filter(field => !progressPair(field.target) && isFactField(screen, field));
+  const inputs = body.filter(field => !facts.includes(field));
+  const checkTitle = isResultScreen(screen.id) ? 'Проверка' : 'Что произойдёт';
+  const primary = { used: false };
+  const cardTitle = body.length && body.every(field => progressPair(field.target)) ? 'Прогресс' : facts.length && !inputs.length ? 'Итог' : 'Состав';
+  const blockCommit = item => preview.saveBlocked && /^(подтвердить|сохранить)(?:\s|$)/i.test(item.value);
   return <>
-    <Topline title={screen.title} back="base-settings" />
-    {(headline || lead) && <div className={`desktop-overview${overviewClass(screen.id)}`}>{headline && <div><small>{headline.value}</small><strong>{headline.target}</strong></div>}{lead && <p>{lead}</p>}</div>}
+    <Topline title={screen.title} back={back || undefined} />
+    {headline && <div className={`desktop-overview${overviewClass(screen.id)}`}><div><small>{headline.value}</small><strong>{headline.target}</strong></div></div>}
     {screen.subtitle ? <p className="flow-caption">{screen.subtitle}</p> : null}
-    {body.length > 0 && <section className="mobile-portfolio-card"><div className="desktop-card-head"><div><span className="desktop-card-kicker">ЛИЧНАЯ КНИГА</span><h3>{body.length && body.every(field => progressPair(field.target)) ? 'Прогресс' : 'Состав'}</h3></div><span>{body.length}</span></div><div className="module-body">{body.map((field, index) => {
-      const progress = progressPair(field.target);
-      if (progress) return <article className="goal-card" key={`${field.value}-${index}`}><header><strong>{field.value.replace(/^Цель [«"]|[»"]$/g, '')}</strong><b>{progress.ratio}%</b></header><small>{progress.current} из {progress.total}</small><div className="desktop-loan-track"><span style={{ width: `${progress.ratio}%` }} /></div></article>;
-      return <PrototypeField key={`${field.value}-${index}`} label={field.value} value={field.target || ''} icon={fieldIcon(field.value)} />;
-    })}</div></section>}
+    <div className={`scenario-layout${body.length ? ' has-fields' : ''}`}>
+      {body.length > 0 && <section className="mobile-portfolio-card scenario-fields"><div className="desktop-card-head"><div><span className="desktop-card-kicker">{facts.length && !inputs.length ? 'Рассчитано' : 'Личная книга'}</span><h3>{cardTitle}</h3></div><span>{body.length}</span></div><div className="module-body">{facts.length > 0 && inputs.length > 0 && <p className="scenario-kicker">Уже рассчитано</p>}{facts.map((field, index) => <FactLine key={`fact-${field.value}-${index}`} label={field.value} value={field.target} icon={fieldIcon(field.value)} />)}{inputs.length > 0 && facts.length > 0 && <p className="scenario-kicker">Можно изменить</p>}{inputs.map((field, index) => {
+        const progress = progressPair(field.target);
+        if (progress) return <article className="goal-card" key={`${field.value}-${index}`}><header><strong>{field.value.replace(/^Цель [«"]|[»"]$/g, '')}</strong><b>{progress.ratio}%</b></header><small>{progress.current} из {progress.total}</small><div className="desktop-loan-track"><span style={{ width: `${progress.ratio}%` }} /></div></article>;
+        return <PrototypeField key={`${field.value}-${index}`} screenId={screen.id} label={field.value} value={field.target || ''} icon={fieldIcon(field.value)} />;
+      })}</div></section>}
+      {(notes.length > 0 || preview.extraNote || shown.length > 0 || screen.id === 'op-split') && <aside className="scenario-side">{(notes.length > 0 || preview.extraNote) && <section className="scenario-check"><h3>{checkTitle}</h3>{notes.map(note => <p key={note.value}>{note.value}</p>)}{preview.extraNote && <p>{preview.extraNote}</p>}</section>}{(shown.length > 0 || screen.id === 'op-split') && <div className="scenario-actions">{screen.id === 'op-split' && (preview.saveBlocked ? <button type="button" className="flow-primary" disabled>Сохранить</button> : <a className="flow-primary" href={go('base-journal')}>Сохранить</a>)}{shown.map(item => blockCommit(item) ? <button type="button" key={item.value} className={actionClass(item.value, primary)} disabled>{item.value}</button> : <a key={item.value} className={actionClass(item.value, primary)} href={go(item.target)}>{item.value}</a>)}</div>}</aside>}
+    </div>
   </>;
 }
 export default function Phone({ screen, form = 'phone' }) {
+  noteVisit(screen.id);
   const wide = form === 'tablet' || form === 'desktop';
   const View = coreViews[screen.id] || coverageViews[screen.id] || captureViews[screen.id];
   return <article className={`phone${wide ? ' phone-wide' : ''} phone-form-${form}`} data-screen={screen.id} data-form={form}>{form === 'desktop' ? <WindowBar /> : <StatusBar />}<div className="phone-workspace">{wide && <MobileNav id={screen.id} wide />}<div className="phone-scroll" key={screen.id}>{View ? <View screen={screen} /> : <Extended screen={screen} />}</div></div>{!wide && <MobileNav id={screen.id} />}{form === 'phone' && <div className="home-indicator" />}</article>;

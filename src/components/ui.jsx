@@ -203,7 +203,7 @@ export const chartPalette = [
   { name: 'Лист', hex: '#2F8F5B', role: 'Доход и рост' },
   { name: 'Слива', hex: '#5C4A86', role: 'Запасной цвет серии' }
 ];
-export function DonutChart({ segments, centerLabel, centerValue, onSelect }) {
+export function DonutChart({ segments, centerLabel, centerValue, onSelect, selected }) {
   const total = segments.reduce((sum, item) => sum + item.value, 0) || 1;
   let previous = 0;
   const gradient = segments.map(item => {
@@ -211,7 +211,12 @@ export function DonutChart({ segments, centerLabel, centerValue, onSelect }) {
     previous += item.value / total * 100;
     return `${item.color} ${start}% ${previous}%`;
   }).join(',');
-  return <div className="report-panel"><div className="report-chart"><div className="donut" style={{ background: `conic-gradient(${gradient})` }}><div><small>{centerLabel}</small><strong>{centerValue}</strong></div></div><div className="report-legend">{segments.map(item => <button type="button" key={item.label} onClick={onSelect ? () => onSelect(item.label) : undefined}><i style={{ background: item.color }} /><span>{item.label}</span><strong>{Math.round(item.value / total * 100)}%</strong></button>)}</div></div></div>;
+  return <div className="report-panel"><div className="report-chart"><div className="donut" style={{ background: `conic-gradient(${gradient})` }}><div><small>{centerLabel}</small><strong>{centerValue}</strong></div></div><div className="report-legend">{segments.map(item => {
+    const share = `${Math.round(item.value / total * 100)}%`;
+    const body = <><i style={{ background: item.color }} /><span>{item.label}</span><strong>{share}</strong></>;
+    if (!onSelect) return <div className="legend-item" key={item.label}>{body}</div>;
+    return <button type="button" key={item.label} className={selected === item.label ? 'selected' : ''} aria-pressed={selected === item.label} onClick={() => onSelect(item.label)}>{body}</button>;
+  })}</div></div></div>;
 }
 export function TrendChart({ title, points, labels, valueLabel, tone = 'green' }) {
   const width = 320, height = 142, padX = 14, padY = 18;
