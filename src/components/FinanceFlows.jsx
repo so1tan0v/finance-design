@@ -23,8 +23,36 @@ export const CATEGORY_TREE = {
     { name: 'Проценты и кэшбэк', icon: 'bank', children: [['Проценты', 'bank'], ['Кэшбэк', 'gift']] },
     { name: 'Инвестиции', icon: 'chart', children: [['Дивиденды', 'chart'], ['Продажа', 'transfer']] },
     { name: 'Другие доходы', icon: 'gift', children: [['Подарок', 'gift'], ['Возврат', 'wallet'], ['Другое', 'star']] }
+  ],
+  Перевод: [
+    { name: 'Перевод', icon: 'transfer', children: [['Между счетами', 'transfer'], ['Обмен валюты', 'bank']] }
   ]
 };
+const CATEGORY_ICONS = ['basket', 'cart', 'cup', 'bag', 'house', 'car', 'bus', 'bolt', 'phone', 'heart', 'book', 'clock', 'briefcase', 'gift', 'star', 'chart', 'bank', 'wallet', 'note', 'person', 'food', 'transfer', 'tag', 'target', 'shield', 'camera'];
+export function categoryParents(kind, directory = readDirectory()) {
+  const records = (directory.categories || []).filter(item => item.kind === kind);
+  const builtins = CATEGORY_TREE[kind] || [];
+  const hiddenParent = name => records.some(item => item.isParent && item.hidden && item.originalName === name);
+  const parentRecord = name => records.find(item => item.isParent && !item.hidden && item.originalName === name);
+  const childrenOf = (parentKey, builtinChildren) => {
+    const hidden = new Set(records.filter(item => !item.isParent && item.hidden && item.parent === parentKey).map(item => item.originalName));
+    const listed = builtinChildren.filter(([name]) => !hidden.has(name)).map(([name, icon]) => {
+      const override = records.find(item => !item.isParent && !item.hidden && item.parent === parentKey && item.originalName === name);
+      return { name: override?.name || name, icon: override?.icon || icon, key: name, builtin: true };
+    });
+    const extras = records.filter(item => !item.isParent && !item.hidden && !item.originalName && item.parent === parentKey).map(item => ({ name: item.name, icon: item.icon || 'star', key: item.name, builtin: false }));
+    return [...listed, ...extras];
+  };
+  const parents = builtins.filter(item => !hiddenParent(item.name)).map(item => {
+    const override = parentRecord(item.name);
+    return { name: override?.name || item.name, icon: override?.icon || item.icon, key: item.name, builtin: true, children: childrenOf(item.name, item.children) };
+  });
+  records.filter(item => item.isParent && !item.hidden && !builtins.some(built => built.name === item.originalName)).forEach(item => {
+    const key = item.originalName || item.name;
+    parents.push({ name: item.name, icon: item.icon || 'star', key, builtin: false, children: childrenOf(key, []) });
+  });
+  return parents;
+}
 const storageKey = 'finance-design-currency-v2';
 const firstAccountKey = 'finance-design-first-account-v1';
 const multiAccountKey = 'finance-design-multi-account-v1';
@@ -216,14 +244,14 @@ export function PocketPicker({ multi, currency, selected, onSelect, onClose }) {
 }
 export function CategoryPicker({ kind, selected, onSelect, onClose, onManage }) {
   const [query, setQuery] = useState('');
-  const custom = readDirectory().categories.filter(item => item.kind === kind);
-  const parents = CATEGORY_TREE[kind].map(item => ({ ...item, children: [...item.children.filter(([name]) => !custom.some(extra => extra.parent === item.name && extra.originalName === name)), ...custom.filter(extra => extra.parent === item.name).map(extra => [extra.name, extra.icon || 'star'])] }));
-  const [parent, setParent] = useState(parents.find(item => selected.startsWith(item.name))?.name || parents[0].name);
+  const parents = categoryParents(kind);
+  const [parent, setParent] = useState(parents.find(item => selected.startsWith(item.name))?.name || parents[0]?.name || '');
   const active = parents.find(item => item.name === parent);
-  const matches = item => `${item.name} ${item.children.map(child => child[0]).join(' ')}`.toLowerCase().includes(query.toLowerCase());
+  const matches = item => `${item.name} ${item.children.map(child => child.name).join(' ')}`.toLowerCase().includes(query.toLowerCase());
   const shown = query ? parents.filter(matches) : parents;
   const visible = query && !shown.some(item => item.name === parent) ? shown[0] : active;
-  return <div className="flow-overlay" role="dialog" aria-modal="true" aria-label="Выбрать категорию и подкатегорию"><div className="flow-sheet category-sheet"><div className="sheet-head"><strong>Категория {kind === 'Доход' ? 'дохода' : 'расхода'}</strong><button type="button" onClick={onClose} aria-label="Закрыть">×</button></div><SearchInput value={query} onChange={setQuery} placeholder="Найти категорию" /><div className="category-columns"><div className="category-parents">{shown.map(item => <button type="button" key={item.name} className={item.name === visible?.name ? 'selected' : ''} onClick={() => setParent(item.name)}><span className="category-icon"><Icon name={item.icon} size={20} /></span><span>{item.name}</span></button>)}</div><div className="category-children">{visible && <><strong className="category-parent-title">{visible.name}</strong>{visible.children.filter(([name]) => !query || name.toLowerCase().includes(query.toLowerCase()) || visible.name.toLowerCase().includes(query.toLowerCase())).map(([name, icon]) => <button type="button" key={name} onClick={() => onSelect(`${visible.name} · ${name}`, icon)}><span className="category-icon"><Icon name={icon} size={19} /></span><span>{name}</span></button>)}</>}</div></div>{onManage && <button type="button" className="flow-link picker-manage" onClick={onManage}>+ Настроить категории</button>}</div></div>;
+  const title = kind === 'Доход' ? 'дохода' : kind === 'Перевод' ? 'перевода' : 'расхода';
+  return <div className="flow-overlay" role="dialog" aria-modal="true" aria-label="Выбрать категорию и подкатегорию"><div className="flow-sheet category-sheet"><div className="sheet-head"><strong>Категория {title}</strong><button type="button" onClick={onClose} aria-label="Закрыть">×</button></div><SearchInput value={query} onChange={setQuery} placeholder="Найти категорию" /><div className="category-columns"><div className="category-parents">{shown.map(item => <button type="button" key={item.key} className={item.name === visible?.name ? 'selected' : ''} onClick={() => setParent(item.name)}><span className="category-icon"><Icon name={item.icon} size={20} /></span><span>{item.name}</span></button>)}</div><div className="category-children">{visible && <><strong className="category-parent-title">{visible.name}</strong>{visible.children.filter(child => !query || child.name.toLowerCase().includes(query.toLowerCase()) || visible.name.toLowerCase().includes(query.toLowerCase())).map(child => <button type="button" key={child.key} onClick={() => onSelect(`${visible.name} · ${child.name}`, child.icon)}><span className="category-icon"><Icon name={child.icon} size={19} /></span><span>{child.name}</span></button>)}{!visible.children.length && <p className="search-empty">В этой категории нет подкатегорий.</p>}</>}</div></div>{onManage && <button type="button" className="flow-link picker-manage" onClick={onManage}>+ Настроить категории</button>}</div></div>;
 }
 export function PayerPicker({ selected, onSelect, onClose, onManage, excludeSelf = false, title = 'Плательщик', suggestions = [] }) {
   const [custom, setCustom] = useState('');
@@ -245,11 +273,17 @@ export function PayerPicker({ selected, onSelect, onClose, onManage, excludeSelf
 const tagCatalogKey = 'finance-design-tags';
 const operationTagsKey = 'finance-design-operation-tags';
 const createdOperationsKey = 'finance-design-created-operations';
-const defaultTagRecords = [{ name: 'Дом', color: '#225C46' }, { name: 'Работа', color: '#C56A1A' }, { name: 'Командировка', color: '#1C6E86' }, { name: 'Семья', color: '#AD3D38' }];
+const familyTagColor = '#6d5d8d';
+const defaultTagRecords = [{ name: 'Дом', color: '#225C46' }, { name: 'Работа', color: '#C56A1A' }, { name: 'Командировка', color: '#1C6E86' }, { name: 'Семья', color: familyTagColor }];
 export function readTagRecords() {
   try {
     const saved = JSON.parse(localStorage.getItem(tagCatalogKey));
-    if (Array.isArray(saved)) return saved.map(item => typeof item === 'string' ? { name: item.trim(), color: '#225C46' } : { name: String(item?.name || '').trim(), color: item?.color || '#225C46' }).filter(item => item.name);
+    if (Array.isArray(saved)) return saved.map(item => {
+      const name = typeof item === 'string' ? item.trim() : String(item?.name || '').trim();
+      let color = typeof item === 'string' ? '#225C46' : (item?.color || '#225C46');
+      if (name === 'Семья' && String(color).toLowerCase() === '#ad3d38') color = familyTagColor;
+      return { name, color };
+    }).filter(item => item.name);
   } catch { /* Preview remains usable. */ }
   return defaultTagRecords;
 }
@@ -319,7 +353,80 @@ export function PayerMultiPicker({ selected = [], onApply, onClose }) {
   };
   return <div className="flow-overlay" role="dialog" aria-modal="true" aria-label="Выбрать участников из плательщиков"><div className="flow-sheet"><div className="sheet-head"><strong>Участники расхода</strong><button type="button" onClick={onClose} aria-label="Закрыть">×</button></div><p className="flow-caption">Выберите людей из общего справочника плательщиков.</p><SearchInput value={query} onChange={setQuery} placeholder="Найти плательщика" /><div className="account-picker-list">{choices.map(name=><button type="button" key={name} className={`payer-picker-row ${draft.includes(name)?'selected':''}`} aria-pressed={draft.includes(name)} onClick={()=>toggle(name)}><span className="account-picker-icon"><Icon name="person" size={20} /></span><span>{name}</span><span className="payer-picker-mark">{draft.includes(name)?'✓':'○'}</span></button>)}</div><label className="flow-input payer-custom">Добавить в справочник<input value={custom} maxLength={40} onChange={event=>setCustom(event.target.value)} onKeyDown={event=>{if(event.key==='Enter'){event.preventDefault();add();}}} placeholder="Имя участника" /></label><button type="button" className="flow-secondary payer-add" disabled={!custom.trim()} onClick={add}>Добавить и выбрать</button><button type="button" className="flow-primary payer-add" disabled={!draft.length} onClick={()=>onApply(draft)}>Выбрать · {draft.length}</button></div></div>;
 }
+function CategoryEditor({ onClose }) {
+  const [directory, setDirectory] = useState(readDirectory);
+  const [kind, setKind] = useState('Расход');
+  const [query, setQuery] = useState('');
+  const [parentKey, setParentKey] = useState(null);
+  const [draft, setDraft] = useState(null);
+  const parents = categoryParents(kind, directory);
+  const parent = parents.find(item => item.key === parentKey) || null;
+  const needle = query.trim().toLowerCase();
+  const shownParents = parents.filter(item => !needle || item.name.toLowerCase().includes(needle) || item.children.some(child => child.name.toLowerCase().includes(needle)));
+  const shownChildren = parent ? parent.children.filter(child => !needle || child.name.toLowerCase().includes(needle)) : [];
+  const cleanName = draft?.name.trim() || '';
+  const nameTaken = draft ? (draft.level === 'parent'
+    ? parents.some(item => item.name.toLowerCase() === cleanName.toLowerCase() && item.key !== draft.key)
+    : Boolean(parent?.children.some(item => item.name.toLowerCase() === cleanName.toLowerCase() && item.key !== draft.key))) : false;
+  const persist = categories => {
+    const next = { ...directory, categories };
+    writeDirectory(next);
+    setDirectory(next);
+  };
+  const saveDraft = () => {
+    if (!draft || !cleanName || nameTaken) return;
+    let records = [...directory.categories];
+    const drop = predicate => { records = records.filter(item => !predicate(item)); };
+    if (draft.level === 'parent') {
+      if (draft.builtin) {
+        drop(item => item.isParent && item.kind === kind && item.originalName === draft.key);
+        const built = (CATEGORY_TREE[kind] || []).find(item => item.name === draft.key);
+        if (!built || cleanName !== built.name || draft.icon !== built.icon) records.push({ kind, isParent: true, originalName: draft.key, name: cleanName, icon: draft.icon });
+      } else if (draft.key) {
+        records = records.map(item => item.isParent && item.kind === kind && (item.originalName || item.name) === draft.key ? { ...item, name: cleanName, icon: draft.icon, originalName: item.originalName || draft.key } : item);
+      } else {
+        const key = `cat-${Date.now()}`;
+        records.push({ kind, isParent: true, originalName: key, name: cleanName, icon: draft.icon });
+        setParentKey(key);
+      }
+    } else if (draft.builtin) {
+      drop(item => !item.isParent && item.kind === kind && item.parent === draft.parentKey && item.originalName === draft.key);
+      const built = (CATEGORY_TREE[kind] || []).find(item => item.name === draft.parentKey)?.children.find(([name]) => name === draft.key);
+      if (!built || cleanName !== built[0] || draft.icon !== built[1]) records.push({ kind, parent: draft.parentKey, originalName: draft.key, name: cleanName, icon: draft.icon });
+    } else if (draft.key) {
+      records = records.map(item => !item.isParent && item.kind === kind && item.parent === draft.parentKey && !item.originalName && item.name === draft.key ? { ...item, name: cleanName, icon: draft.icon } : item);
+    } else {
+      records.push({ kind, parent: draft.parentKey, name: cleanName, icon: draft.icon });
+    }
+    persist(records);
+    setDraft(null);
+  };
+  const removeDraft = () => {
+    if (!draft?.key) return;
+    let records = [...directory.categories];
+    if (draft.level === 'parent') {
+      if (draft.builtin) {
+        records = records.filter(item => !(item.kind === kind && ((item.isParent && item.originalName === draft.key) || (!item.isParent && item.parent === draft.key))));
+        records.push({ kind, isParent: true, originalName: draft.key, hidden: true });
+      } else {
+        records = records.filter(item => !(item.kind === kind && ((item.isParent && (item.originalName || item.name) === draft.key) || (!item.isParent && item.parent === draft.key))));
+      }
+      setParentKey(null);
+    } else if (draft.builtin) {
+      records = records.filter(item => !(!item.isParent && item.kind === kind && item.parent === draft.parentKey && item.originalName === draft.key));
+      records.push({ kind, parent: draft.parentKey, originalName: draft.key, hidden: true });
+    } else {
+      records = records.filter(item => !(!item.isParent && item.kind === kind && item.parent === draft.parentKey && !item.originalName && item.name === draft.key));
+    }
+    persist(records);
+    setDraft(null);
+  };
+  const title = draft ? (draft.level === 'parent' ? (draft.key ? 'Категория' : 'Новая категория') : (draft.key ? 'Подкатегория' : 'Новая подкатегория')) : (parent ? parent.name : 'Категории');
+  const goBack = () => { if (draft) setDraft(null); else { setParentKey(null); setQuery(''); } };
+  return <div className="flow-overlay" role="dialog" aria-modal="true" aria-label="Категории"><div className="flow-sheet directory-sheet category-editor"><div className="sheet-head">{parent || draft ? <button type="button" onClick={goBack} aria-label="Назад"><Icon name="back" size={18} /></button> : <span className="sheet-head-spacer" />}<strong>{title}</strong><button type="button" onClick={onClose} aria-label="Закрыть">×</button></div>{!parent && !draft && <><div className="entry-tabs" role="tablist" aria-label="Тип категории">{['Расход', 'Доход', 'Перевод'].map(value => <button type="button" key={value} role="tab" aria-selected={kind === value} className={kind === value ? 'active' : ''} onClick={() => { setKind(value); setParentKey(null); setQuery(''); }}>{value}</button>)}</div><SearchInput value={query} onChange={setQuery} placeholder="Найти категорию" /><div className="category-manage-grid">{shownParents.map(item => <button type="button" key={item.key} onClick={() => { setParentKey(item.key); setQuery(''); }}><span className="category-icon"><Icon name={item.icon} size={22} /></span><span>{item.name}</span></button>)}<button type="button" className="add" onClick={() => setDraft({ level: 'parent', name: '', icon: 'star', builtin: false })}><span className="category-icon"><Icon name="plus" size={20} /></span><span>Добавить</span></button></div>{!shownParents.length && needle && <p className="search-empty">Такой категории нет. Добавьте её кнопкой ниже.</p>}</>}{parent && !draft && <><div className="category-subhead"><span className="category-icon"><Icon name={parent.icon} size={22} /></span><span><strong>{parent.name}</strong><small>{kind}</small></span><button type="button" className="flow-link" onClick={() => setDraft({ level: 'parent', key: parent.key, name: parent.name, icon: parent.icon, builtin: parent.builtin })}>Изменить</button></div><SearchInput value={query} onChange={setQuery} placeholder="Найти подкатегорию" /><div className="directory-list category-sub-list">{shownChildren.map(child => <button type="button" key={`${child.builtin ? 'b' : 'c'}-${child.key}`} onClick={() => setDraft({ level: 'child', parentKey: parent.key, key: child.key, name: child.name, icon: child.icon, builtin: child.builtin })}><span className="category-icon"><Icon name={child.icon} size={18} /></span><span><strong>{child.name}</strong><small>Подкатегория</small></span><Icon name="chevron" size={16} /></button>)}</div>{!shownChildren.length && <p className="search-empty">{needle ? 'Такой подкатегории нет.' : 'Подкатегорий пока нет. Добавьте первую.'}</p>}<button type="button" className="flow-link" onClick={() => setDraft({ level: 'child', parentKey: parent.key, name: '', icon: parent.icon, builtin: false })}>+ Добавить подкатегорию</button></>}{draft && <div className="directory-form"><label className="flow-input">Название<input autoFocus value={draft.name} maxLength={40} onChange={event => setDraft({ ...draft, name: event.target.value })} placeholder={draft.level === 'parent' ? 'Например, Хобби' : 'Например, Кофе'} /></label>{nameTaken && <p className="flow-caption">Такое название уже есть в этом списке.</p>}<p className="flow-caption">Иконка</p><div className="category-icon-grid" role="listbox" aria-label="Иконка">{CATEGORY_ICONS.map(value => <button type="button" key={value} className={draft.icon === value ? 'selected' : ''} aria-pressed={draft.icon === value} aria-label={`Иконка ${value}`} onClick={() => setDraft({ ...draft, icon: value })}><Icon name={value} size={18} /></button>)}</div><button type="button" className="flow-primary directory-save" disabled={!cleanName || nameTaken} onClick={saveDraft}>Сохранить</button>{draft.key && <button type="button" className="flow-link" onClick={removeDraft}>Удалить</button>}</div>}</div></div>;
+}
 export function DirectoryEditor({ type, onClose }) {
+  if (type === 'category') return <CategoryEditor onClose={onClose} />;
   const [settings, updateSettings] = useCurrencySettings();
   const [directory, setDirectory] = useState(readDirectory);
   const [savedPayers, setSavedPayers] = useState(readPayers);
@@ -641,12 +748,12 @@ function bucketsFor(scale, from, to) {
   if (scale === 'year' || days > 62) return monthBuckets(from, to);
   return weekBuckets(from, to);
 }
-function categoryIcon(name) {
-  for (const groups of Object.values(CATEGORY_TREE)) {
-    for (const parent of groups) {
+export function categoryIcon(name) {
+  for (const kind of Object.keys(CATEGORY_TREE)) {
+    for (const parent of categoryParents(kind)) {
       if (parent.name === name) return parent.icon;
-      const child = parent.children.find(([childName]) => childName === name);
-      if (child) return child[1];
+      const child = parent.children.find(item => item.name === name);
+      if (child) return child.icon;
     }
   }
   return 'star';

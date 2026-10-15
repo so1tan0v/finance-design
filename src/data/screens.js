@@ -15,7 +15,7 @@ const base = [
   {id:'search',title:'Поиск',subtitle:'Операции, счета и разделы в одном месте',elements:[]}
 ];
 
-export const retiredIds = ['calendar', 'forecast-day', 'forecast', 'merchants', 'merchant-edit'];
+export const retiredIds = ['calendar', 'forecast-day', 'forecast', 'merchants', 'merchant-edit', 'projects', 'project-create', 'project-report'];
 export const screens = [...base, ...figmaScreens, ...fullScopeScreens];
 export const screenMap = new Map(screens.map(screen => [screen.id, screen]));
 export const groups = [

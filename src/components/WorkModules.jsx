@@ -9,7 +9,6 @@ const themeKey = 'finance-design-theme';
 const localeKey = 'finance-design-locale';
 const goalsKey = 'finance-design-goals';
 const subsKey = 'finance-design-subscriptions';
-const projectsKey = 'finance-design-projects';
 const togetherKey = 'finance-design-together';
 const syncKey = 'finance-design-sync';
 const notesKey = 'finance-design-notifications';
@@ -127,10 +126,6 @@ const defaultSubs = [
   { id: 'cloud', name: 'Облако', amount: 199, currency: 'RUB', account: 'Банковский счёт', category: 'Подписки', next: '2026-10-24', every: 'Месяц', paused: false },
   { id: 'rent', name: 'Аренда', amount: 30000, currency: 'RUB', account: 'Банковский счёт', category: 'Жильё', next: '2026-11-01', every: 'Месяц', paused: false }
 ];
-const journalChoices = [
-  ['op-13-products', 'Продукты', -1240], ['op-12-cafe', 'Кафе', -450], ['op-11-taxi', 'Такси', -320], ['op-10-rent', 'Аренда', -30000], ['op-8-utils', 'Коммунальные', -1850], ['op-12-salary', 'Зарплата', 70000]
-];
-const defaultProjects = [{ id: 'repair', name: 'Ремонт', note: 'Квартира', from: '2026-10-01', to: '', currency: 'RUB', operationIds: ['op-10-rent', 'op-8-utils'] }];
 const depositChoices = ['Накопительный · TBC', 'Гибкий · TBC'];
 const tagColors = ['#225C46', '#C56A1A', '#1C6E86', '#AD3D38', '#2F8F5B', '#5C4A86', '#386DCB', '#926A36'];
 
@@ -214,27 +209,6 @@ function TogetherFlow() {
     setOpen(false);
   };
   return <><Head title="Совместные расходы" subtitle="Обычная операция плюс доли" /><p className="flow-caption">Общий расход живёт в журнале. Доля каждого человека, кроме плательщика, сразу попадает в «Долги». То же самое делает переключатель «Разделить между людьми» в расходе.</p>{rows.map(item => <article className="goal-card" key={item.id}><header><strong>{item.title}</strong><b>{moneyText(item.amount, item.currency)}</b></header><small>Заплатил {item.payer} · {item.account} · {formatIsoDate(item.date)}</small><small>{item.people.map(name => `${name} ${moneyText(share(item.amount, item.people.length), item.currency)}`).join(' · ')}</small></article>)}<p className="flow-caption">Уже в долгах из общих расходов: {readSharedDebts().length ? readSharedDebts().map(item => `${item.person} ${moneyText(item.amount, item.currency)}`).join(' · ') : 'пока нет. Сохраните расход ниже или разделите его в журнале.'}</p><div className="module-actions module-span"><button type="button" className="flow-primary" onClick={() => { setDraft({ amount: '900', payer: 'Я', people: ['Я', 'Анна'], account: 'Наличные', date: '2026-10-14', note: '' }); setOpen(true); }}>{t('Новый расход')}</button><a className="flow-secondary" href={go('debts')}>Открыть долги</a></div>{open && <Sheet title="Общий расход" onClose={() => setOpen(false)}><label className="flow-inline"><span>Сумма, ₽</span><input inputMode="decimal" value={draft.amount} onChange={event => setDraft({ ...draft, amount: event.target.value })} /></label><label className="flow-inline"><span>Заметка</span><input value={draft.note} onChange={event => setDraft({ ...draft, note: event.target.value })} placeholder="Например, ужин" /></label><label className="flow-inline"><span>Кто заплатил</span><select value={draft.payer} onChange={event => setDraft({ ...draft, payer: event.target.value })}>{people.map(name => <option key={name}>{name}</option>)}</select></label><DateField label="Дата" value={draft.date} onChange={date => setDraft({ ...draft, date })} /><p className="flow-caption">Участники, сумма делится поровну</p><div className="filter-chips">{people.map(name => <Toggle key={name} pressed={draft.people.includes(name)} onClick={() => setDraft({ ...draft, people: draft.people.includes(name) ? draft.people.filter(item => item !== name) : [...draft.people, name] })}>{name}</Toggle>)}</div><button type="button" className="flow-primary" disabled={draft.people.length < 2} onClick={save}>{t('Сохранить')}</button></Sheet>}</>;
-}
-
-function ProjectsFlow({ screen }) {
-  const [projects, setProjects] = useStored(projectsKey, defaultProjects);
-  const [open, setOpen] = useState(screen?.id === 'project-create');
-  const [current, setCurrent] = useState(screen?.id === 'project-report' ? 'repair' : '');
-  const [draft, setDraft] = useState({ name: '', note: '', from: '2026-10-01', to: '', operationIds: [] });
-  const created = readCreatedOperations().map(item => [item.id, item.title, 0]);
-  const choices = [...journalChoices, ...created];
-  const spentOf = ids => choices.filter(item => ids.includes(item[0])).reduce((sum, item) => sum + Math.abs(item[2]), 0);
-  const save = () => {
-    const name = draft.name.trim();
-    if (!name) return;
-    const id = `project-${Date.now()}`;
-    setProjects([...projects, { id, ...draft, name }]);
-    setOpen(false);
-    setCurrent(id);
-  };
-  const project = projects.find(item => item.id === current);
-  const inProject = choices.filter(item => project?.operationIds?.includes(item[0]));
-  return <><Head title="Проекты" subtitle="Срез журнала, без своего остатка" /><p className="flow-caption">Проект собирает уже существующие операции. Он не заводит отдельный счёт и не меняет остатки. Один расход относится к одному проекту.</p>{!project && projects.map(item => <button type="button" className="account-tile" key={item.id} onClick={() => setCurrent(item.id)}><span className="account-tile-icon"><Icon name="briefcase" /></span><span className="account-tile-copy"><strong>{item.name}</strong><small>{item.note || 'Без описания'} · {item.operationIds.length} операций</small></span><strong className="account-tile-amount">{moneyText(spentOf(item.operationIds))}</strong></button>)}{project && <><button type="button" className="flow-link debt-back" onClick={() => setCurrent('')}>← Все проекты</button><article className="goal-card module-span"><header><strong>{project.name}</strong><b>{moneyText(spentOf(project.operationIds))}</b></header><small>{project.note} · {formatIsoDate(project.from)}</small></article><div className="ledger-card"><p className="flow-caption">В проекте</p>{inProject.map(item => <div className="operation-row" key={item[0]}><span className="operation-copy"><strong>{item[1]}</strong></span><strong className="operation-amount">{item[2] ? moneyText(Math.abs(item[2])) : 'в журнале'}</strong></div>)}{!inProject.length && <p className="search-empty">Операций в проекте нет.</p>}</div><div className="ledger-card project-checks"><p className="flow-caption">Добавить из журнала</p>{choices.map(item => { const on = project.operationIds.includes(item[0]); return <button type="button" key={item[0]} className={`project-check${on ? ' active' : ''}`} aria-pressed={on} onClick={() => setProjects(projects.map(row => row.id === project.id ? { ...row, operationIds: on ? row.operationIds.filter(id => id !== item[0]) : [...row.operationIds, item[0]] } : row))}><span>{item[1]}</span><strong>{on ? 'В проекте' : 'Добавить'}</strong></button>; })}</div></>}{!project && <div className="module-actions module-span"><button type="button" className="flow-primary" onClick={() => setOpen(true)}>{t('Новый проект')}</button></div>}{open && <Sheet title={t('Новый проект')} onClose={() => setOpen(false)}><label className="flow-inline"><span>Название</span><input value={draft.name} onChange={event => setDraft({ ...draft, name: event.target.value })} placeholder="Например, Ремонт" /></label><label className="flow-inline"><span>Описание</span><input value={draft.note} onChange={event => setDraft({ ...draft, note: event.target.value })} /></label><DateField label="Начало" value={draft.from} onChange={from => setDraft({ ...draft, from })} /><button type="button" className="flow-primary" disabled={!draft.name.trim()} onClick={save}>{t('Сохранить')}</button></Sheet>}</>;
 }
 
 function BooksFlow({ screen }) {
@@ -449,7 +423,7 @@ function TagsFlow() {
 }
 
 function DirectoriesFlow() {
-  return <><Head title="Справочники" subtitle="Категории, проекты, теги" /><a className="account-tile" href={go('currencies')}><span className="account-tile-icon"><Icon name="wallet" /></span><span className="account-tile-copy"><strong>Валюты и курсы</strong><small>Базовая валюта и ручные курсы</small></span></a><a className="account-tile" href={go('projects')}><span className="account-tile-icon"><Icon name="briefcase" /></span><span className="account-tile-copy"><strong>Проекты</strong><small>Срез операций</small></span></a><a className="account-tile" href={go('tags')}><span className="account-tile-icon"><Icon name="tag" /></span><span className="account-tile-copy"><strong>Теги и правила</strong><small>Метки и цвета</small></span></a><a className="account-tile" href={go('base-settings')}><span className="account-tile-icon"><Icon name="settings" /></span><span className="account-tile-copy"><strong>Категории и счета</strong><small>В настройках</small></span></a></>;
+  return <><Head title="Справочники" subtitle="Категории и теги" /><a className="account-tile" href={go('currencies')}><span className="account-tile-icon"><Icon name="wallet" /></span><span className="account-tile-copy"><strong>Валюты и курсы</strong><small>Базовая валюта и ручные курсы</small></span></a><a className="account-tile" href={go('tags')}><span className="account-tile-icon"><Icon name="tag" /></span><span className="account-tile-copy"><strong>Теги и правила</strong><small>Метки и цвета</small></span></a><a className="account-tile" href={go('base-settings')}><span className="account-tile-icon"><Icon name="settings" /></span><span className="account-tile-copy"><strong>Категории и счета</strong><small>В настройках</small></span></a></>;
 }
 
 const importKey = 'finance-design-import-draft';
@@ -602,34 +576,26 @@ function ExportFlow() {
   return <><Head title="Экспорт" subtitle="Журнал открытой книги" /><div className="wide-split"><div className="wide-main"><p className="flow-caption">Выгрузка берёт текущую книгу и период. Печать отчёта сюда не входит: резервная копия живёт отдельно.</p><label className="flow-inline"><span>Что выгрузить</span><select value={scope} onChange={event => setScope(event.target.value)}><option value="all">Все операции</option><option value="expense">Только расходы</option><option value="income">Только доходы</option><option value="transfer">Только переводы</option></select></label><label className="flow-inline"><span>Формат</span><select value={format} onChange={event => setFormat(event.target.value)}>{['CSV', 'XLSX', 'PDF', 'HTML', 'TXT', 'QIF'].map(item => <option key={item}>{item}</option>)}</select></label><p className="flow-caption">Период можно набрать или выбрать в календаре.</p><DateCalendar mode="range" from={from} to={to && to !== from ? to : ''} onPick={pick} onRangeChange={(start, end) => { setFrom(start || ''); setTo(end || ''); }} /><button type="button" className="flow-primary" disabled={!rows.length} onClick={download}>Скачать {format === 'XLSX' || format === 'PDF' ? 'таблицу' : format}</button>{ready && <p className="flow-caption">{ready}</p>}</div><aside className="wide-side"><div className="ledger-card import-preview">{rows.length ? rows.map((item, index) => <div className="operation-row" key={`${item.date}-${item.title}-${index}`}><span className="operation-copy"><strong>{item.title}</strong><small>{item.date} · {item.account}</small></span><strong className={`operation-amount ${item.amount < 0 ? 'negative' : 'positive'}`}>{signedMoney(item.amount)}</strong></div>) : <p className="search-empty">За этот период операций нет.</p>}</div></aside></div></>;
 }
 function RemovedFlow() {
-  return <><Head title="Раздел убран" subtitle="Его нет в телефоне, на планшете и на компьютере" /><p className="flow-caption">Календарь, прогноз и магазины больше не входят в приложение. Платежи ведутся в подписках, цели — в резервах, метки — в тегах.</p><a className="flow-primary" href={go('subscriptions')}>Подписки</a><a className="flow-secondary" href={go('goals')}>Цели</a><a className="flow-secondary" href={go('base-settings')}>Настройки</a></>;
+  return <><Head title="Раздел убран" subtitle="Его нет в телефоне, на планшете и на компьютере" /><p className="flow-caption">Календарь, прогноз, магазины и проекты больше не входят в приложение. Платежи ведутся в подписках, цели — в резервах, метки — в тегах.</p><a className="flow-primary" href={go('subscriptions')}>Подписки</a><a className="flow-secondary" href={go('goals')}>Цели</a><a className="flow-secondary" href={go('base-settings')}>Настройки</a></>;
 }
 
-const emptyFilters = { category: '', account: '', payer: '', project: '', tags: [] };
+const emptyFilters = { category: '', account: '', payer: '', tags: [] };
 export function JournalFilterButton({ value, onChange }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value || emptyFilters);
-  const count = [value.category, value.account, value.payer, value.project, ...(value.tags || [])].filter(Boolean).length;
+  const count = [value.category, value.account, value.payer, ...(value.tags || [])].filter(Boolean).length;
   const categories = ['Продукты', 'Кафе', 'Такси', 'Аренда', 'Коммунальные', 'Зарплата', 'Подработка', 'Долг'];
   const payers = [...new Set(['Я', 'Анна', 'Тимур', 'Работодатель', ...readPayers()])];
-  const projects = readJson(projectsKey, defaultProjects);
   const openSheet = () => { setDraft(value || emptyFilters); setOpen(true); };
   const setField = (key, next) => setDraft(current => ({ ...current, [key]: current[key] === next ? '' : next }));
-  return <><button type="button" className={`journal-date-filter${count ? ' active' : ''}`} onClick={openSheet}>{t('Фильтры')}{count ? ` · ${count}` : ''}</button>{open && <Sheet title={t('Фильтры')} onClose={() => setOpen(false)}><p className="flow-caption">Категория</p><div className="filter-chips">{categories.map(name => <Toggle key={name} pressed={draft.category === name} onClick={() => setField('category', name)}>{name}</Toggle>)}</div><p className="flow-caption">Счёт</p><div className="filter-chips">{getAccountRows().map(account => <Toggle key={account.name} pressed={draft.account === account.name} onClick={() => setField('account', account.name)}>{account.name}</Toggle>)}</div><p className="flow-caption">Плательщик</p><div className="filter-chips">{payers.map(name => <Toggle key={name} pressed={draft.payer === name} onClick={() => setField('payer', name)}>{name}</Toggle>)}</div><p className="flow-caption">Теги</p><div className="filter-chips">{readTagRecords().map(item => <Toggle key={item.name} pressed={draft.tags.includes(item.name)} onClick={() => setDraft(current => ({ ...current, tags: current.tags.includes(item.name) ? current.tags.filter(tag => tag !== item.name) : [...current.tags, item.name] }))}><i className="tag-dot" style={{ background: item.color }} />{item.name}</Toggle>)}</div><p className="flow-caption">Проект</p><div className="filter-chips">{projects.map(item => <Toggle key={item.id} pressed={draft.project === item.id} onClick={() => setField('project', item.id)}>{item.name}</Toggle>)}</div><button type="button" className="flow-primary" onClick={() => { onChange(draft); setOpen(false); }}>Показать</button><button type="button" className="flow-secondary" onClick={() => { onChange(emptyFilters); setDraft(emptyFilters); setOpen(false); }}>Сбросить</button></Sheet>}</>;
+  return <><button type="button" className={`journal-date-filter${count ? ' active' : ''}`} onClick={openSheet}>{t('Фильтры')}{count ? ` · ${count}` : ''}</button>{open && <Sheet title={t('Фильтры')} onClose={() => setOpen(false)}><p className="flow-caption">Категория</p><div className="filter-chips">{categories.map(name => <Toggle key={name} pressed={draft.category === name} onClick={() => setField('category', name)}>{name}</Toggle>)}</div><p className="flow-caption">Счёт</p><div className="filter-chips">{getAccountRows().map(account => <Toggle key={account.name} pressed={draft.account === account.name} onClick={() => setField('account', account.name)}>{account.name}</Toggle>)}</div><p className="flow-caption">Плательщик</p><div className="filter-chips">{payers.map(name => <Toggle key={name} pressed={draft.payer === name} onClick={() => setField('payer', name)}>{name}</Toggle>)}</div><p className="flow-caption">Теги</p><div className="filter-chips">{readTagRecords().map(item => <Toggle key={item.name} pressed={draft.tags.includes(item.name)} onClick={() => setDraft(current => ({ ...current, tags: current.tags.includes(item.name) ? current.tags.filter(tag => tag !== item.name) : [...current.tags, item.name] }))}><i className="tag-dot" style={{ background: item.color }} />{item.name}</Toggle>)}</div><button type="button" className="flow-primary" onClick={() => { onChange(draft); setOpen(false); }}>Показать</button><button type="button" className="flow-secondary" onClick={() => { onChange(emptyFilters); setDraft(emptyFilters); setOpen(false); }}>Сбросить</button></Sheet>}</>;
 }
 export function JournalFilterChips({ value, onChange }) {
-  const projects = readJson(projectsKey, defaultProjects);
-  const chips = [value.category, value.account, value.payer, ...(value.tags || []), projects.find(item => item.id === value.project)?.name].filter(Boolean);
+  const chips = [value.category, value.account, value.payer, ...(value.tags || [])].filter(Boolean);
   if (!chips.length) return null;
-  return <div className="filter-chips journal-active-filters">{chips.map(name => <button type="button" key={name} className="filter-chip active" onClick={() => onChange({ ...value, category: value.category === name ? '' : value.category, account: value.account === name ? '' : value.account, payer: value.payer === name ? '' : value.payer, project: projects.find(item => item.name === name)?.id === value.project ? '' : value.project, tags: (value.tags || []).filter(tag => tag !== name) })}>{name} ×</button>)}</div>;
+  return <div className="filter-chips journal-active-filters">{chips.map(name => <button type="button" key={name} className="filter-chip active" onClick={() => onChange({ ...value, category: value.category === name ? '' : value.category, account: value.account === name ? '' : value.account, payer: value.payer === name ? '' : value.payer, tags: (value.tags || []).filter(tag => tag !== name) })}>{name} ×</button>)}</div>;
 }
 export const emptyJournalFilters = emptyFilters;
-export function operationInProject(projectId, operationId) {
-  if (!projectId) return true;
-  const projects = readJson(projectsKey, defaultProjects);
-  const project = (Array.isArray(projects) ? projects : []).find(item => item.id === projectId);
-  return Boolean(project?.operationIds?.includes(operationId));
-}
 
 export const workViews = {
   goals: GoalsFlow,
@@ -637,9 +603,6 @@ export const workViews = {
   subscriptions: SubscriptionsFlow,
   repeat: SubscriptionsFlow,
   together: TogetherFlow,
-  projects: ProjectsFlow,
-  'project-create': ProjectsFlow,
-  'project-report': ProjectsFlow,
   books: BooksFlow,
   'book-create': BooksFlow,
   'book-transfer': BooksFlow,

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { AccountTile, Button, DateCalendar, Icon, MobileFormField, MobileHero, Notice, Progress, chartPalette, formatIsoDate, screenHref } from './ui.jsx';
-import { WelcomeFlow, EntryFlow, CurrenciesFlow, AccountCreateFlow, PocketsFlow, BudgetFlow, DepositFlow, LoanFlow, DebtFlow, DirectoryEditor, PrototypeField, TagPicker, Calculator, CATEGORY_TREE, applyAccountAdjustment, currencySymbol, getAccountRows, getFirstAccount, readCreatedOperations, readDirectory, readOperationTags, readPayers, readScreenDraft, readSettings, readTagRecords, rememberOperation, useScreenDrafts, writeOperationTags } from './FinanceFlows.jsx';
-import { JournalFilterButton, JournalFilterChips, ThemeChoice, activeBookId, emptyJournalFilters, operationInProject, readBooks, t, useLocale, workViews } from './WorkModules.jsx';
-import { screens } from '../data/screens.js';
+import { WelcomeFlow, EntryFlow, CurrenciesFlow, AccountCreateFlow, PocketsFlow, BudgetFlow, DepositFlow, LoanFlow, DebtFlow, DirectoryEditor, PrototypeField, TagPicker, Calculator, categoryParents, applyAccountAdjustment, currencySymbol, getAccountRows, getFirstAccount, readCreatedOperations, readOperationTags, readPayers, readScreenDraft, readSettings, readTagRecords, rememberOperation, useScreenDrafts, writeOperationTags } from './FinanceFlows.jsx';
+import { JournalFilterButton, JournalFilterChips, ThemeChoice, activeBookId, emptyJournalFilters, readBooks, t, useLocale, workViews } from './WorkModules.jsx';
+import { retiredIds, screens } from '../data/screens.js';
 import { coverageViews } from './CoverageFlows.jsx';
 import { captureViews } from './CaptureFlows.jsx';
 
@@ -14,7 +14,7 @@ const wideNavGroups = [
   { label: 'Планирование', items: [['budget', 'Бюджет', 'budget', ['budget', 'budgetedit', 'thresholds', 'alert']], ['goals', 'Цели и резервы', 'target', ['goals']], ['subscriptions', 'Подписки', 'clock', ['subscriptions']]] },
   { label: 'Совместно', items: [['together', 'Совместные расходы', 'person', ['together']], ['debts', 'Долги', 'transfer', ['debts', 'debt-new', 'debt-detail', 'debt-repay', 'debt-repay-preview']]] },
   { label: 'Продукты', items: [['deposits', 'Вклады', 'deposit', ['deposits', 'deposit-new', 'deposit-detail', 'deposit-payout', 'deposit-compare']], ['loans', 'Кредиты', 'loan', ['loans', 'loan-detail', 'loan-calc', 'loan-schedule', 'loan-pay', 'loan-pay-preview', 'loan-extra']]] },
-  { label: 'Справочники', items: [['currencies', 'Валюты и курсы', 'wallet', ['currencies', 'available', 'rates']], ['projects', 'Проекты', 'briefcase', ['projects']]] },
+  { label: 'Справочники', items: [['currencies', 'Валюты и курсы', 'wallet', ['currencies', 'available', 'rates']]] },
   { label: 'Ввод и данные', items: [['receipt', 'Фото чека', 'camera', ['receipt']], ['qr-receipt', 'QR чека', 'qr', ['qr-receipt']], ['import-file', 'Импорт', 'down', ['import-file', 'import-preview', 'duplicate-review']], ['export-data', 'Экспорт', 'arrow', ['export-data']]] },
   { label: 'Настройки', items: [['books', 'Книги учёта', 'wallet', ['books']], ['tags', 'Теги и правила', 'tag', ['tags']], ['backup', 'Резервная копия', 'shield', ['backup']], ['sync', 'Синхронизация', 'transfer', ['sync']], ['notifications', 'Уведомления', 'clock', ['notifications']], ['access-settings', 'Приватность и доступ', 'shield', ['access-settings']], ['locale-settings', 'Язык и отображение', 'settings', ['locale-settings', 'language']], ['base-settings', 'Все настройки', 'settings', ['base-settings']]] },
 ];
@@ -33,7 +33,6 @@ const navRules = [
   ['debts', /^debt/],
   ['deposits', /^deposit/],
   ['loans', /^loan/],
-  ['projects', /^project/],
   ['currencies', /^(currencies|available|rates)$/],
   ['books', /^book/],
   ['tags', /^(tags|rules|rule-|bulk-preview)/],
@@ -59,7 +58,7 @@ function MobileNav({ id, wide = false }) {
   const onJournal = ['base-journal', 'receipt', 'qr-receipt', 'import-file', 'export-data'].includes(current);
   const onHome = current === 'base-accounts';
   const onMore = Boolean(current) && !onJournal && !onHome && current !== 'base-transfer';
-  return <nav className="phone-nav" aria-label="Навигация приложения"><a className={onJournal ? 'selected' : ''} href={go('base-journal')} aria-current={onJournal ? 'page' : undefined}><Icon name="list" />{t('Журнал')}</a><a className={onHome ? 'selected' : ''} href={go('base-accounts')} aria-current={onHome ? 'page' : undefined}><Icon name="house" />{t('Главная')}</a>{add}<a className={onMore ? 'selected' : ''} href={go('base-settings')} aria-current={onMore ? 'page' : undefined}><Icon name="more" />{t('Ещё')}</a></nav>;
+  return <nav className="phone-nav" aria-label="Навигация приложения"><a className={onHome ? 'selected' : ''} href={go('base-accounts')} aria-current={onHome ? 'page' : undefined}><Icon name="house" />{t('Главная')}</a><a className={onJournal ? 'selected' : ''} href={go('base-journal')} aria-current={onJournal ? 'page' : undefined}><Icon name="list" />{t('Журнал')}</a>{add}<a className={onMore ? 'selected' : ''} href={go('base-settings')} aria-current={onMore ? 'page' : undefined}><Icon name="more" />{t('Ещё')}</a></nav>;
 }
 function Topline({ title, back, subtitle, accessory }) { return <div className={`mobile-topline ${back ? 'small' : ''}`}>{back ? <a className="circle-button" href={go(back)} aria-label="Назад"><Icon name="back" /></a> : <div><small>{subtitle}</small><h2>{title}</h2></div>}{back && <h2>{title}</h2>}{accessory || <span className="topline-spacer" />}</div>; }
 function SectionHeading({ title, action, to }) { return <div className="mobile-section-heading"><h3>{title}</h3>{action && <a href={go(to)}>{action} <Icon name="chevron" size={17} /></a>}</div>; }
@@ -202,17 +201,16 @@ function journalBuckets(scale, items) {
 }
 function categoryIconFor(item) {
   const known = new Set();
-  Object.values(CATEGORY_TREE).forEach(groups => groups.forEach(parent => {
+  const parents = ['Расход', 'Доход', 'Перевод'].flatMap(kind => categoryParents(kind));
+  parents.forEach(parent => {
     known.add(parent.icon);
-    parent.children.forEach(([, icon]) => known.add(icon));
-  }));
+    parent.children.forEach(child => known.add(child.icon));
+  });
   if (item.kind && known.has(item.kind)) return item.kind;
-  for (const groups of Object.values(CATEGORY_TREE)) {
-    for (const parent of groups) {
-      if (parent.name === item.category) return parent.icon;
-      const child = parent.children.find(([name]) => name === item.category);
-      if (child) return child[1];
-    }
+  for (const parent of parents) {
+    if (parent.name === item.category) return parent.icon;
+    const child = parent.children.find(child => child.name === item.category);
+    if (child) return child.icon;
   }
   return item.kind || 'wallet';
 }
@@ -308,7 +306,6 @@ function Journal() {
     matchesDateFilter(item, dates) &&
     (!facet.account || item.account === facet.account) &&
     (!facet.payer || (item.payer || 'Я') === facet.payer) &&
-    operationInProject(facet.project, item.id) &&
     (!(facet.tags || []).length || (facet.tags || []).every(tag => (item.tags || []).includes(tag))) &&
     (dates || !reportPeriod || item.period === reportPeriod) &&
     `${item.title} ${item.detail} ${item.amount} ${item.day} ${(item.tags || []).join(' ')} ${item.payer || ''}`.toLowerCase().includes(query.toLowerCase());
@@ -398,22 +395,21 @@ function Settings() {
     ['Интеграции и боты', 'bot-setup', 'person', 'Команды с подтверждением']
   ];
   const products = ['Долги', 'Вклады', 'Кредиты'];
-  return <><Topline title={t('Настройки')} accessory={<a className="circle-button" href={go('search')} aria-label="Поиск"><Icon name="search" /></a>} /><div className="settings-block settings-theme"><SectionHeading title={t('Тема')} /><ThemeChoice /></div><div className="settings-block"><SectionHeading title={t('Справочники')} /><div className="settings-group"><a href={go('currencies')}><Icon name="wallet" /><span><strong>Валюты и курсы</strong><small>Базовая валюта и ручные курсы</small></span><Icon name="chevron" size={17} /></a><button type="button" onClick={() => setEditor('account')}><Icon name="bank" /><span><strong>Счета</strong><small>Названия, валюты и остатки</small></span><Icon name="chevron" size={17} /></button><button type="button" onClick={() => setEditor('category')}><Icon name="tag" /><span><strong>Категории</strong><small>Доходы, расходы и иконки</small></span><Icon name="chevron" size={17} /></button><button type="button" onClick={() => setEditor('payer')}><Icon name="person" /><span><strong>Плательщики</strong><small>Люди и участники</small></span><Icon name="chevron" size={17} /></button><a href={go('projects')}><Icon name="briefcase" /><span><strong>Проекты</strong><small>Операции и итоги по проекту</small></span><Icon name="chevron" size={17} /></a><a href={go('tags')}><Icon name="tag" /><span><strong>Теги и правила</strong><small>Метки и цвета</small></span><Icon name="chevron" size={17} /></a></div></div><div className="settings-block"><SectionHeading title={t('Счета и обязательства')} /><div className="settings-group">{modules.filter(([title]) => products.includes(title)).map(([title, route, icon, hint]) => <a href={go(route)} key={route}><Icon name={icon} /><span><strong>{t(title)}</strong><small>{hint}</small></span><Icon name="chevron" size={17} /></a>)}</div></div><div className="settings-block"><SectionHeading title={t('Модули')} /><div className="settings-group">{modules.filter(([title]) => !products.includes(title)).map(([title, route, icon, hint]) => <a href={go(route)} key={route}><Icon name={icon} /><span><strong>{t(title)}</strong><small>{hint}</small></span><Icon name="chevron" size={17} /></a>)}</div></div><div className="settings-block"><SectionHeading title={t('Данные и доступ')} /><div className="settings-group"><a href={go('access-settings')}><Icon name="shield" /><span><strong>{t('Приватность и доступ')}</strong><small>Код и скрытие сумм</small></span><Icon name="chevron" size={17} /></a><a href={go('locale-settings')}><Icon name="settings" /><span><strong>{t('Язык и отображение')}</strong><small>Язык, дата и плотность списков</small></span><Icon name="chevron" size={17} /></a></div></div>{editor && <DirectoryEditor type={editor} onClose={() => setEditor(null)} />}</>;
+  return <><Topline title={t('Настройки')} accessory={<a className="circle-button" href={go('search')} aria-label="Поиск"><Icon name="search" /></a>} /><div className="settings-block settings-theme"><SectionHeading title={t('Тема')} /><ThemeChoice /></div><div className="settings-block"><SectionHeading title={t('Справочники')} /><div className="settings-group"><a href={go('currencies')}><Icon name="wallet" /><span><strong>Валюты и курсы</strong><small>Базовая валюта и ручные курсы</small></span><Icon name="chevron" size={17} /></a><button type="button" onClick={() => setEditor('account')}><Icon name="bank" /><span><strong>Счета</strong><small>Названия, валюты и остатки</small></span><Icon name="chevron" size={17} /></button><button type="button" onClick={() => setEditor('category')}><Icon name="tag" /><span><strong>Категории</strong><small>Расход, доход, перевод и иконки</small></span><Icon name="chevron" size={17} /></button><button type="button" onClick={() => setEditor('payer')}><Icon name="person" /><span><strong>Плательщики</strong><small>Люди и участники</small></span><Icon name="chevron" size={17} /></button><a href={go('tags')}><Icon name="tag" /><span><strong>Теги и правила</strong><small>Метки и цвета</small></span><Icon name="chevron" size={17} /></a></div></div><div className="settings-block"><SectionHeading title={t('Счета и обязательства')} /><div className="settings-group">{modules.filter(([title]) => products.includes(title)).map(([title, route, icon, hint]) => <a href={go(route)} key={route}><Icon name={icon} /><span><strong>{t(title)}</strong><small>{hint}</small></span><Icon name="chevron" size={17} /></a>)}</div></div><div className="settings-block"><SectionHeading title={t('Модули')} /><div className="settings-group">{modules.filter(([title]) => !products.includes(title)).map(([title, route, icon, hint]) => <a href={go(route)} key={route}><Icon name={icon} /><span><strong>{t(title)}</strong><small>{hint}</small></span><Icon name="chevron" size={17} /></a>)}</div></div><div className="settings-block"><SectionHeading title={t('Данные и доступ')} /><div className="settings-group"><a href={go('access-settings')}><Icon name="shield" /><span><strong>{t('Приватность и доступ')}</strong><small>Код и скрытие сумм</small></span><Icon name="chevron" size={17} /></a><a href={go('locale-settings')}><Icon name="settings" /><span><strong>{t('Язык и отображение')}</strong><small>Язык, дата и плотность списков</small></span><Icon name="chevron" size={17} /></a></div></div>{editor && <DirectoryEditor type={editor} onClose={() => setEditor(null)} />}</>;
 }
 function GlobalSearch() {
   const [query, setQuery] = useState(''), [scope, setScope] = useState('Всё');
   const index = [
     ...operationsWithTags().map(item => ({ title: item.title, detail: `${item.detail} · ${item.amount}${(item.tags || []).length ? ` · ${item.tags.join(', ')}` : ''}`, group: 'Операции', to: `base-detail?op=${item.id}`, icon: item.kind || 'food' })),
     ...getAccountRows().map(item => ({ title: item.name, detail: item.type, group: 'Счета', to: item.multi ? 'pockets' : 'base-account', icon: item.icon || 'wallet' })),
-    ...['Расход', 'Доход'].flatMap(kind => CATEGORY_TREE[kind].flatMap(parent => parent.children.map(([name, icon]) => ({ title: name, detail: kind + ' · ' + parent.name, group: 'Справочники', to: 'base-settings', icon })))),
-    ...readDirectory().categories.map(item => ({ title: item.name, detail: item.kind + ' · ' + item.parent, group: 'Справочники', to: 'base-settings', icon: item.icon || 'star' })),
+    ...['Расход', 'Доход', 'Перевод'].flatMap(kind => categoryParents(kind).flatMap(parent => [{ title: parent.name, detail: kind, group: 'Справочники', to: 'base-settings', icon: parent.icon }, ...parent.children.map(child => ({ title: child.name, detail: `${kind} · ${parent.name}`, group: 'Справочники', to: 'base-settings', icon: child.icon }))])),
     ...readPayers().map(name => ({ title: name, detail: 'Плательщик', group: 'Справочники', to: 'base-settings', icon: 'person' })),
     ...readSettings().currencies.map(code => ({ title: code, detail: 'Валюта · ' + currencySymbol(code), group: 'Справочники', to: 'currencies', icon: 'wallet' })),
-    ...screens.filter(item => !item.id.startsWith('base-')).map(item => ({ title: item.title, detail: item.subtitle, group: 'Экраны', to: item.id, icon: 'search' })),
-    { title: 'Настройки', detail: 'Справочники и параметры', group: 'Экраны', to: 'base-settings', icon: 'settings' }
+    ...screens.filter(item => !item.id.startsWith('base-') && !retiredIds.includes(item.id)).map(item => ({ title: item.title, detail: item.subtitle, group: 'Разделы', to: item.id, icon: 'search' })),
+    { title: 'Настройки', detail: 'Справочники и параметры', group: 'Разделы', to: 'base-settings', icon: 'settings' }
   ];
   const shown = index.filter(item => (scope === 'Всё' || item.group === scope) && `${item.title} ${item.detail}`.toLowerCase().includes(query.toLowerCase())).slice(0, 20);
-  return <><Topline title="Поиск" back="base-accounts" /><label className="app-search"><Icon name="search" size={18} /><input autoFocus type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Операции, счета, разделы" aria-label="Поиск по приложению" /></label><div className="search-scopes" role="group" aria-label="Искать в">{['Всё','Операции','Счета','Справочники','Экраны'].map(value => <button type="button" key={value} className={scope === value ? 'active' : ''} onClick={() => setScope(value)}>{value}</button>)}</div><div className="search-results">{shown.map((item, index) => <a href={go(item.to)} key={`${item.group}-${item.title}-${index}`}><span className="category-icon"><Icon name={item.icon} size={18} /></span><span><strong>{item.title}</strong><small>{item.detail}</small></span><Icon name="chevron" size={16} /></a>)}{!shown.length && <p className="search-empty">Ничего не найдено</p>}</div></>;
+  return <><Topline title="Поиск" back="base-accounts" /><label className="app-search"><Icon name="search" size={18} /><input autoFocus type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Операции, счета, разделы" aria-label="Поиск по приложению" /></label><div className="search-scopes" role="group" aria-label="Искать в">{['Всё','Операции','Счета','Справочники','Разделы'].map(value => <button type="button" key={value} className={scope === value ? 'active' : ''} onClick={() => setScope(value)}>{value}</button>)}</div><div className="search-results">{shown.map((item, index) => <a href={go(item.to)} key={`${item.group}-${item.title}-${index}`}><span className="category-icon"><Icon name={item.icon} size={18} /></span><span><strong>{item.title}</strong><small>{item.detail}</small></span><Icon name="chevron" size={16} /></a>)}{!shown.length && <p className="search-empty">Ничего не найдено</p>}</div></>;
 }
 const coreViews = { ...workViews, currencies:CurrenciesFlow,available:CurrenciesFlow,rates:CurrenciesFlow,createaccount:AccountCreateFlow,pockets:PocketsFlow,reports:Journal,pie:Journal,enreports:Journal,budget:BudgetFlow,budgetedit:BudgetFlow,deposits:DepositFlow,'deposit-new':DepositFlow,'deposit-detail':DepositFlow,'deposit-payout':DepositFlow,loans:LoanFlow,'loan-calc':LoanFlow,'loan-detail':LoanFlow,'loan-schedule':LoanFlow,'loan-pay':LoanFlow,'loan-pay-preview':LoanFlow,debts:DebtFlow,'debt-new':DebtFlow,'debt-detail':DebtFlow,'debt-repay':DebtFlow,'debt-repay-preview':DebtFlow,search:GlobalSearch,'base-welcome':Welcome,'base-accounts':Accounts,'base-expense':Expense,'base-journal':Journal,'journal-filters':Journal,'base-transfer':Transfer,'base-detail':Detail,'base-account':Account,'base-cancel':Cancel,'base-settings':Settings};
 function fieldIcon(label) {

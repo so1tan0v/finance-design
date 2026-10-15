@@ -108,6 +108,23 @@ body{font-family:inherit;font-size:14px}.site-header{max-width:1440px;padding:20
 .directory-icons{display:flex;gap:5px;overflow-x:auto;padding:7px 0}
 .directory-icons button{width:36px;height:36px;flex:none;border:1px solid var(--border);background:#fff;border-radius:10px;color:var(--primary-ink)}
 .directory-icons button.selected{background:var(--primary-soft);border-color:var(--primary)}
+.category-editor .sheet-head{display:grid;grid-template-columns:36px minmax(0,1fr) 36px}.category-editor .sheet-head button{display:grid;place-items:center;padding:0}
+.category-editor .sheet-head strong{text-align:center}
+.sheet-head-spacer{width:36px;height:36px}
+.category-manage-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px 4px;margin:8px 0 4px}
+.category-manage-grid>button{display:flex;flex-direction:column;align-items:center;gap:6px;min-height:78px;padding:4px 2px;border:0;background:transparent;color:var(--ink);font-size:11px;font-weight:650;line-height:1.2;text-align:center}
+.category-manage-grid .category-icon{width:46px;height:46px;border-radius:50%}
+.category-manage-grid>button.add .category-icon{background:transparent;border:1px dashed var(--border);color:var(--primary-ink)}
+.category-subhead{display:flex;align-items:center;gap:10px;margin:4px 0 10px}
+.category-subhead>span:nth-child(2){flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}
+.category-subhead strong{font-size:15px}
+.category-subhead small{color:var(--muted);font-size:11px}
+.category-subhead .category-icon{width:44px;height:44px;border-radius:50%}
+.category-subhead .flow-link{width:auto;margin:0;min-height:36px}
+.category-sub-list{max-height:none}
+.category-icon-grid{display:grid;grid-template-columns:repeat(6,36px);gap:6px;margin:8px 0 12px}
+.category-icon-grid button{width:36px;height:36px;border:1px solid var(--border);background:var(--card);border-radius:10px;color:var(--primary-ink)}
+.category-icon-grid button.selected{background:var(--primary-soft);border-color:var(--primary)}
 .directory-save{width:100%;margin-top:9px}
 .settings-group>a,.settings-group>button{width:100%;display:flex;gap:11px;align-items:center;border:0;border-bottom:1px solid var(--border);min-height:71px;padding:11px 0;background:transparent;color:var(--ink);text-align:left}
 .settings-group>a:last-child,.settings-group>button:last-child{border:0}
